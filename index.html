@@ -1,0 +1,2656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2e5d18">
+  <title>Alpha Snake</title>
+  <style>
+    :root {
+      --bg: #2e5d18;
+      --bg-deep: #183812;
+      --leaf: #6CCB3C;
+      --leaf-bright: #8DE84A;
+      --leaf-mid: #4E962C;
+      --leaf-dark: #2E5D18;
+      --accent-blue: #4B7BFF;
+      --accent-blue-deep: #2E5EFF;
+      --gold: #FFD95A;
+      --danger: #FF5B6E;
+      --glass: rgba(20, 30, 20, 0.45);
+      --glass-strong: rgba(20, 30, 20, 0.68);
+      --tile-a: #a8d94d;
+      --tile-b: #a0d248;
+      --text: #f6ffe7;
+      --muted: rgba(246, 255, 231, 0.72);
+      --font: "Inter", "Poppins", "SF Pro Display", "Segoe UI", sans-serif;
+      --shadow-soft: 0 20px 45px rgba(8, 26, 8, 0.28);
+      --shadow-deep: 0 32px 90px rgba(8, 22, 7, 0.45);
+      --radius-xl: 36px;
+      --radius-lg: 26px;
+      --radius-md: 20px;
+      --viewport-pad: 12px;
+      --shell-max: 1120px;
+      --rail-width: 340px;
+      --stage-max: 640px;
+      --stage-side-reserve: 520px;
+    }
+    html[data-device="tablet"] {
+      --viewport-pad: 10px;
+      --shell-max: 1024px;
+      --rail-width: 320px;
+      --stage-max: 580px;
+      --stage-side-reserve: 220px;
+    }
+    html[data-device="phone"] {
+      --viewport-pad: 8px;
+      --shell-max: 100%;
+      --rail-width: 100%;
+      --stage-max: min(92vw, 560px);
+      --stage-side-reserve: 36px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      color: var(--text);
+      font-family: var(--font);
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 15% 15%, rgba(141, 232, 74, 0.16), transparent 24%),
+        radial-gradient(circle at 85% 18%, rgba(75, 123, 255, 0.12), transparent 22%),
+        radial-gradient(circle at 50% 110%, rgba(255, 217, 90, 0.08), transparent 30%),
+        linear-gradient(180deg, #5d9f31 0%, #4c8a28 35%, #33661b 100%);
+    }
+    body {
+      position: relative;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: var(--viewport-pad);
+      background-attachment: fixed;
+    }
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      inset: -20%;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.8;
+    }
+    body::before {
+      background:
+        radial-gradient(circle at 20% 20%, rgba(255,255,255,0.12), transparent 22%),
+        radial-gradient(circle at 70% 35%, rgba(141,232,74,0.12), transparent 24%),
+        radial-gradient(circle at 50% 80%, rgba(255,255,255,0.05), transparent 28%);
+      animation: fogDrift 18s ease-in-out infinite alternate;
+    }
+    body::after {
+      background:
+        radial-gradient(circle at 40% 30%, rgba(255,255,255,0.06), transparent 32%),
+        radial-gradient(circle at 80% 70%, rgba(75,123,255,0.08), transparent 24%);
+      animation: fogDriftSlow 26s ease-in-out infinite alternate;
+    }
+
+    .scene-particles {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .scene-particles span {
+      position: absolute;
+      width: var(--size, 10px);
+      height: var(--size, 10px);
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(141,232,74,0.4) 45%, rgba(141,232,74,0) 72%);
+      box-shadow: 0 0 20px rgba(141,232,74,0.22);
+      opacity: 0.5;
+      transform: translate3d(0, 0, 0);
+      animation: particleFloat var(--duration, 12s) ease-in-out infinite;
+      animation-delay: var(--delay, 0s);
+    }
+
+    .game-shell {
+      position: relative;
+      z-index: 1;
+      width: min(100%, var(--shell-max));
+      height: min(calc(100dvh - (var(--viewport-pad) * 2)), 980px);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 18px;
+    }
+    .playfield-layout {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .top-bar {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      padding: 12px;
+      border-radius: 30px;
+      background: linear-gradient(135deg, rgba(20, 30, 20, 0.72), rgba(78, 150, 44, 0.2));
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(24px);
+      overflow: hidden;
+    }
+    .top-bar::before {
+      content: "";
+      position: absolute;
+      inset: -35% -10%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent);
+      transform: translateX(-100%);
+      animation: hudSweep 9s linear infinite;
+    }
+    .stat {
+      position: relative;
+      min-width: 0;
+      padding: 14px 14px 14px 52px;
+      border-radius: 22px;
+      background: linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 12px 30px rgba(12, 32, 10, 0.16);
+      transform: translateZ(0);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      text-align: left;
+    }
+    .stat:hover {
+      transform: translateY(-2px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 18px 36px rgba(12, 32, 10, 0.22);
+    }
+    .stat::before {
+      content: attr(data-icon);
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+      font-size: 0.95rem;
+    }
+    .stat-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .stat-value {
+      margin-top: 5px;
+      font-size: clamp(1.08rem, 2vw, 1.55rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      text-shadow: 0 0 18px rgba(255,255,255,0.12);
+    }
+    .stat.value-pop {
+      animation: valuePop 0.45s ease;
+    }
+
+    .board-wrap {
+      position: relative;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: auto minmax(300px, var(--rail-width));
+      justify-content: center;
+      gap: 14px;
+      align-items: stretch;
+      padding: 16px;
+      overflow: hidden;
+      border-radius: var(--radius-xl);
+      background: linear-gradient(180deg, rgba(141,232,74,0.12), rgba(20,30,20,0.18));
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: var(--shadow-deep), inset 0 1px 0 rgba(255,255,255,0.2);
+      isolation: isolate;
+    }
+    .board-stage {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+    .board-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.18) 48%, transparent 68%);
+      mix-blend-mode: screen;
+      transform: translateX(-60%) skewX(-16deg);
+      animation: boardSweep 10s ease-in-out infinite;
+      opacity: 0.65;
+    }
+    .board-wrap::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 50% 8%, rgba(255,255,255,0.13), transparent 28%),
+        radial-gradient(circle at 50% 50%, transparent 62%, rgba(0,0,0,0.24) 100%);
+    }
+    canvas {
+      position: relative;
+      z-index: 1;
+      display: block;
+      width: min(var(--stage-max), calc(100vw - var(--stage-side-reserve)), calc(100dvh - 270px));
+      height: auto;
+      aspect-ratio: 1 / 1;
+      min-width: 0;
+      min-height: 0;
+      border-radius: 28px;
+      box-shadow:
+        0 24px 40px rgba(7, 18, 7, 0.22),
+        inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+    }
+    .title-chip {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 26px;
+      border-radius: 999px;
+      background: linear-gradient(160deg, rgba(20,30,20,0.8), rgba(78,150,44,0.4));
+      border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 18px 42px rgba(10,22,10,0.28), inset 0 1px 0 rgba(255,255,255,0.14);
+      backdrop-filter: blur(18px);
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      text-shadow: 0 2px 0 rgba(10,22,10,0.35);
+      animation: titlePulse 3.2s ease-in-out infinite;
+    }
+    .title-icon {
+      display: inline-grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+      font-size: 0.95rem;
+    }
+
+    .bottom-panel {
+      position: relative;
+      width: min(100%, 640px);
+      justify-self: center;
+      display: flex;
+      justify-content: center;
+      padding: 0;
+    }
+    .message-card {
+      position: relative;
+      width: 100%;
+      min-height: 114px;
+      padding: 0;
+      border-radius: var(--radius-lg);
+      background:
+        linear-gradient(140deg, rgba(8, 24, 16, 0.97) 0%, rgba(15, 48, 27, 0.94) 42%, rgba(37, 100, 46, 0.92) 100%);
+      border: 1px solid rgba(255,255,255,0.11);
+      box-shadow:
+        0 24px 54px rgba(7, 20, 8, 0.28),
+        0 0 0 1px rgba(255,255,255,0.04),
+        inset 0 1px 0 rgba(255,255,255,0.12),
+        inset 0 -18px 28px rgba(0,0,0,0.12);
+      text-align: left;
+      backdrop-filter: blur(22px);
+      transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+      overflow: hidden;
+    }
+    .message-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+        radial-gradient(circle at 18% 0%, rgba(255,255,255,0.12), transparent 32%);
+      background-size: 22px 22px, 22px 22px, 100% 100%;
+      opacity: 0.14;
+      pointer-events: none;
+    }
+    .message-card::after {
+      content: "";
+      position: absolute;
+      inset: -45% -20%;
+      background: linear-gradient(110deg, transparent 36%, rgba(255,255,255,0.16) 48%, transparent 61%);
+      transform: translateX(-68%) skewX(-18deg);
+      animation: missionSweep 5.8s ease-in-out infinite;
+      opacity: 0.7;
+      pointer-events: none;
+    }
+    .message-card[data-sentiment="bullish"] {
+      border-color: rgba(132, 255, 150, 0.22);
+      box-shadow:
+        0 24px 54px rgba(7, 20, 8, 0.28),
+        0 0 0 1px rgba(132, 255, 150, 0.06),
+        0 0 32px rgba(108,203,60,0.14),
+        inset 0 1px 0 rgba(255,255,255,0.12),
+        inset 0 -18px 28px rgba(0,0,0,0.12);
+    }
+    .message-card[data-sentiment="bearish"] {
+      border-color: rgba(255, 112, 133, 0.22);
+      box-shadow:
+        0 24px 54px rgba(7, 20, 8, 0.28),
+        0 0 0 1px rgba(255, 112, 133, 0.05),
+        0 0 30px rgba(255,91,110,0.12),
+        inset 0 1px 0 rgba(255,255,255,0.12),
+        inset 0 -18px 28px rgba(0,0,0,0.12);
+    }
+    .message-card.prompt-enter {
+      animation: promptEnter 0.45s cubic-bezier(0.2, 0.9, 0.2, 1);
+    }
+    .message-main {
+      position: relative;
+      z-index: 1;
+      min-height: 114px;
+    }
+    .mission-line {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-height: 114px;
+      padding: 18px 22px;
+    }
+    .mission-icon-badge {
+      position: relative;
+      flex: 0 0 70px;
+      width: 70px;
+      height: 70px;
+      display: grid;
+      place-items: center;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.05));
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 10px 22px rgba(0,0,0,0.18);
+      overflow: hidden;
+    }
+    .mission-icon-badge::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border-radius: 14px;
+      background: radial-gradient(circle at 50% 40%, rgba(255,255,255,0.16), transparent 72%);
+      opacity: 0.9;
+    }
+    .message-card[data-sentiment="bullish"] .mission-icon-badge {
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 0 24px rgba(114, 255, 128, 0.16);
+    }
+    .message-card[data-sentiment="bearish"] .mission-icon-badge {
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 0 24px rgba(255, 102, 123, 0.16);
+    }
+    .mission-icon-badge svg {
+      position: relative;
+      z-index: 1;
+      width: 40px;
+      height: 40px;
+      filter: drop-shadow(0 6px 12px rgba(0,0,0,0.2));
+    }
+    .mission-copy {
+      position: relative;
+      z-index: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      padding-right: 88px;
+    }
+    .mission-title {
+      color: #ffffff;
+      font-size: clamp(1.28rem, 2.4vw, 1.9rem);
+      line-height: 1;
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-shadow: 0 8px 22px rgba(0,0,0,0.28);
+      transform: skewX(-7deg);
+      transform-origin: left center;
+      white-space: nowrap;
+    }
+    .mission-subtitle {
+      position: relative;
+      color: var(--muted);
+      font-size: clamp(0.9rem, 1.35vw, 1rem);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-shadow: 0 3px 10px rgba(0,0,0,0.18);
+    }
+    .mission-watermark {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      width: 148px;
+      height: 72px;
+      transform: translateY(-50%);
+      opacity: 0.09;
+      pointer-events: none;
+    }
+    .message-card[data-sentiment="bullish"] .mission-watermark {
+      color: rgba(141, 232, 74, 0.9);
+    }
+    .message-card[data-sentiment="bearish"] .mission-watermark {
+      color: rgba(255, 91, 110, 0.9);
+    }
+    .message-card[data-sentiment="neutral"] .mission-watermark {
+      color: rgba(255, 217, 90, 0.85);
+    }
+    .message-sub {
+      display: none;
+    }
+    .answer-rail {
+      position: relative;
+      z-index: 5;
+      min-height: 0;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(18, 34, 18, 0.72), rgba(10, 24, 12, 0.84));
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 22px 48px rgba(8, 22, 8, 0.22), inset 0 1px 0 rgba(255,255,255,0.08);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      max-width: 340px;
+    }
+    .answer-rail::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 18px 18px;
+      opacity: 0.08;
+      pointer-events: none;
+    }
+    .answer-rail-header {
+      position: relative;
+      z-index: 1;
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0));
+    }
+    .answer-rail-kicker {
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(246,255,231,0.58);
+      font-weight: 700;
+    }
+    .answer-rail-title {
+      margin-top: 6px;
+      font-size: 1.02rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #f6ffe7;
+    }
+    .answer-list {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      min-height: 0;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      align-content: start;
+      overflow: visible;
+      transition: gap 0.28s ease, align-content 0.28s ease;
+    }
+    .answer-list[data-focus="true"] {
+      gap: 0;
+      align-content: center;
+      overflow: hidden;
+    }
+    .answer-item {
+      position: relative;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr);
+      grid-template-areas:
+        "media body"
+        "detail detail";
+      align-items: start;
+      column-gap: 8px;
+      row-gap: 6px;
+      border-radius: 18px;
+      padding: 8px 8px 8px 12px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+      overflow: hidden;
+      max-height: 540px;
+      transition:
+        border-color 0.18s ease,
+        background 0.18s ease,
+        box-shadow 0.18s ease,
+        opacity 0.24s ease,
+        transform 0.3s ease,
+        max-height 0.32s ease,
+        padding 0.26s ease,
+        margin 0.26s ease;
+    }
+    .answer-item::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 3px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+    }
+    .answer-item[data-status="filled"]::before {
+      background: linear-gradient(180deg, #8DE84A, #4B7BFF);
+      box-shadow: 0 0 12px rgba(141,232,74,0.25);
+    }
+    .answer-item[data-status="pending"] {
+      opacity: 0.68;
+    }
+    .answer-item[data-open="true"] {
+      border-color: rgba(141,232,74,0.24);
+      background: linear-gradient(180deg, rgba(255,255,255,0.11), rgba(108,203,60,0.08));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px rgba(8,22,8,0.16);
+    }
+    .answer-list[data-focus="true"] .answer-item[data-rail-group="active"] {
+      z-index: 2;
+      transform: scale(1.01);
+    }
+    .answer-list[data-focus="true"] .answer-item[data-rail-group="above"] {
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      margin-bottom: 0;
+      opacity: 0;
+      border-color: transparent;
+      box-shadow: none;
+      background: transparent;
+      transform: translateY(-28px);
+      pointer-events: none;
+    }
+    .answer-list[data-focus="true"] .answer-item[data-rail-group="below"] {
+      max-height: 0;
+      padding-top: 0;
+      padding-bottom: 0;
+      margin-top: 0;
+      opacity: 0;
+      border-color: transparent;
+      box-shadow: none;
+      background: transparent;
+      transform: translateY(28px);
+      pointer-events: none;
+    }
+    .answer-item-media,
+    .answer-item-canvas,
+    .answer-item-ghost {
+      grid-area: media;
+      flex: 0 0 34px;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+    }
+    .answer-item-canvas,
+    .answer-item-ghost {
+      display: block;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+      background: rgba(10, 22, 14, 0.28);
+    }
+    .answer-item-ghost {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .answer-item-ghost::before {
+      content: "";
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
+      background-size: 10px 10px;
+      opacity: 0.5;
+    }
+    .answer-item-copy {
+      grid-area: body;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .answer-item-summary {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .answer-item-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 8px;
+    }
+    .answer-item-meta {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .answer-item-summary[data-answer-action="toggle"] {
+      cursor: pointer;
+    }
+    .answer-item-controls {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      align-self: start;
+      min-height: 0;
+    }
+    .answer-item-name {
+      font-size: 0.72rem;
+      font-weight: 800;
+      line-height: 1.08;
+      color: #f6ffe7;
+    }
+    .answer-item-hint {
+      font-size: 0.62rem;
+      line-height: 1.22;
+      color: rgba(246,255,231,0.76);
+      font-weight: 600;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .answer-item-action {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      align-self: flex-start;
+      min-width: max-content;
+      white-space: nowrap;
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: rgba(255,255,255,0.06);
+      color: rgba(246,255,231,0.9);
+      font: inherit;
+      font-size: 0.56rem;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+    }
+    .answer-item-action:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.2);
+      transform: translateY(-1px);
+    }
+    .answer-item-action:active {
+      transform: translateY(0);
+    }
+    .answer-item-detail-wrap {
+      grid-area: detail;
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height 0.28s ease, opacity 0.18s ease;
+    }
+    .answer-item[data-open="true"] .answer-item-detail-wrap {
+      max-height: 420px;
+      opacity: 1;
+    }
+    .answer-item-detail-card {
+      margin-top: 2px;
+      padding: 10px;
+      border-radius: 14px;
+      background: rgba(10, 22, 14, 0.26);
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 8px;
+      max-height: min(300px, 40vh);
+      transform: translateY(-8px);
+      transition: transform 0.24s ease;
+    }
+    .answer-item[data-open="true"] .answer-item-detail-card {
+      transform: translateY(0);
+    }
+    .answer-item-detail-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .answer-item-detail-title {
+      min-width: 0;
+      font-size: 0.8rem;
+      line-height: 1.12;
+      font-weight: 800;
+      color: #f6ffe7;
+    }
+    .answer-item-detail-close {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: rgba(246,255,231,0.92);
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      font: inherit;
+      font-size: 0.82rem;
+      line-height: 1;
+      font-weight: 800;
+      cursor: pointer;
+      flex: 0 0 auto;
+      transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+    }
+    .answer-item-detail-close:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.2);
+      transform: translateY(-1px);
+    }
+    .answer-item-detail-summary {
+      font-size: 0.64rem;
+      line-height: 1.3;
+      color: rgba(246,255,231,0.82);
+      font-weight: 600;
+    }
+    .answer-item-detail-body {
+      min-height: 0;
+      display: grid;
+      gap: 8px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      padding-right: 2px;
+    }
+    .answer-item-detail-body::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
+    .answer-item-detail-grid {
+      display: grid;
+      gap: 7px;
+    }
+    .answer-item-detail-block {
+      padding: 7px 8px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .answer-item-detail-label {
+      font-size: 0.54rem;
+      line-height: 1;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(246,255,231,0.46);
+      font-weight: 800;
+    }
+    .answer-item-detail-text {
+      margin-top: 4px;
+      font-size: 0.61rem;
+      line-height: 1.28;
+      color: rgba(246,255,231,0.78);
+      font-weight: 600;
+    }
+    .answer-item-placeholder {
+      font-size: 0.6rem;
+      line-height: 1.2;
+      color: rgba(246,255,231,0.5);
+      font-weight: 600;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .answer-item[data-status="filled"][data-sentiment="bullish"] .answer-item-canvas {
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 16px rgba(132,255,150,0.12);
+    }
+    .answer-item[data-status="filled"][data-sentiment="bearish"] .answer-item-canvas {
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 16px rgba(255,112,133,0.12);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 0 6px;
+    }
+    .controls > div:first-child {
+      display: none;
+    }
+    .button-row {
+      display: flex;
+      gap: 12px;
+      pointer-events: auto;
+    }
+    button {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      padding: 14px 22px;
+      font: inherit;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--text);
+      background: linear-gradient(180deg, rgba(141,232,74,0.94), rgba(78,150,44,0.92));
+      box-shadow: 0 16px 32px rgba(19,50,11,0.24), inset 0 1px 0 rgba(255,255,255,0.2);
+      cursor: pointer;
+      pointer-events: auto;
+      transform: translateZ(0);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+    }
+    button.secondary {
+      background: linear-gradient(180deg, rgba(75,123,255,0.94), rgba(45,83,204,0.92));
+    }
+    button:hover {
+      transform: translateY(-2px) scale(1.01);
+      box-shadow: 0 20px 40px rgba(19,50,11,0.28), inset 0 1px 0 rgba(255,255,255,0.22);
+      filter: saturate(1.05);
+    }
+    button:active {
+      transform: translateY(1px) scale(0.985);
+    }
+    button:focus-visible {
+      outline: 2px solid rgba(255,255,255,0.8);
+      outline-offset: 3px;
+    }
+    .answer-rail .answer-item-action {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(255,255,255,0.06);
+      color: rgba(246,255,231,0.92);
+      box-shadow: none;
+      font: inherit;
+      font-size: 0.56rem;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      pointer-events: auto;
+      flex: 0 0 auto;
+      white-space: nowrap;
+      max-width: none;
+      transform: none;
+      filter: none;
+      transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+    }
+    .answer-rail .answer-item-action:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.2);
+      box-shadow: none;
+      transform: translateY(-1px);
+      filter: none;
+    }
+    .answer-rail .answer-item-action:active {
+      transform: translateY(0);
+    }
+
+    @keyframes hudSweep {
+      0% { transform: translateX(-120%); }
+      100% { transform: translateX(120%); }
+    }
+    @keyframes boardSweep {
+      0%, 100% { transform: translateX(-60%) skewX(-16deg); }
+      50% { transform: translateX(120%) skewX(-16deg); }
+    }
+    @keyframes titlePulse {
+      0%, 100% { transform: translateX(-50%) scale(1); }
+      50% { transform: translateX(-50%) scale(1.015); }
+    }
+    @keyframes missionSweep {
+      0%, 100% { transform: translateX(-68%) skewX(-18deg); }
+      50% { transform: translateX(118%) skewX(-18deg); }
+    }
+    @keyframes promptEnter {
+      0% { transform: translateY(-10px) scale(0.98); opacity: 0; }
+      100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    @keyframes valuePop {
+      0% { transform: scale(1); }
+      35% { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+    @keyframes particleFloat {
+      0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); opacity: 0.25; }
+      50% { transform: translate3d(0, -22px, 0) scale(1.08); opacity: 0.75; }
+    }
+    @keyframes fogDrift {
+      0% { transform: translate3d(-2%, 0, 0) scale(1); }
+      100% { transform: translate3d(2%, -2%, 0) scale(1.06); }
+    }
+    @keyframes fogDriftSlow {
+      0% { transform: translate3d(1%, 0, 0) scale(1); }
+      100% { transform: translate3d(-2%, 2%, 0) scale(1.08); }
+    }
+
+    @media (max-width: 900px) {
+      .game-shell {
+        width: min(100%, 960px);
+      }
+      .top-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .bottom-panel { width: min(100%, 560px); }
+      .board-wrap {
+        grid-template-columns: 1fr;
+        justify-content: stretch;
+      }
+      .board-stage {
+        justify-content: center;
+        flex: 1 1 auto;
+      }
+      .answer-rail {
+        min-height: 320px;
+        max-width: none;
+      }
+      .answer-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 720px) {
+      .game-shell {
+        height: min(calc(100dvh - (var(--viewport-pad) * 2)), 980px);
+        gap: 14px;
+      }
+      .top-bar {
+        padding: 10px;
+        gap: 10px;
+      }
+      .stat {
+        padding: 13px 12px 13px 46px;
+      }
+      .title-chip {
+        top: 12px;
+        padding: 12px 20px;
+        font-size: 0.82rem;
+      }
+      .bottom-panel { width: min(100%, 96%); }
+      .playfield-layout {
+        gap: 14px;
+      }
+      .board-wrap {
+        padding: 12px;
+        gap: 12px;
+      }
+      .board-stage {
+        justify-content: center;
+      }
+      .message-card {
+        min-height: 102px;
+      }
+      .mission-line {
+        min-height: 102px;
+        gap: 12px;
+        padding: 14px 16px;
+      }
+      .mission-icon-badge {
+        flex-basis: 58px;
+        width: 58px;
+        height: 58px;
+        border-radius: 16px;
+      }
+      .mission-icon-badge svg {
+        width: 34px;
+        height: 34px;
+      }
+      .mission-title {
+        font-size: clamp(1.08rem, 5vw, 1.4rem);
+      }
+      .mission-subtitle {
+        font-size: 0.82rem;
+      }
+      .mission-copy {
+        padding-right: 38px;
+      }
+      .mission-watermark {
+        width: 108px;
+        height: 54px;
+        right: 10px;
+      }
+      .answer-rail-header {
+        padding: 16px 16px 12px;
+      }
+      .answer-list {
+        grid-template-columns: 1fr;
+        padding: 10px;
+      }
+        .answer-item {
+          border-radius: 16px;
+        }
+        .answer-item-media,
+        .answer-item-canvas,
+        .answer-item-ghost {
+          grid-column: 1;
+          flex-basis: 30px;
+          width: 30px;
+          height: 30px;
+        }
+        .answer-item {
+          grid-template-columns: 30px minmax(0, 1fr);
+        }
+        .answer-item-action {
+          padding: 5px 8px;
+          font-size: 0.52rem;
+        }
+        .answer-item-head {
+          gap: 6px;
+        }
+        .answer-item[data-open="true"] .answer-item-detail-wrap {
+          max-height: 360px;
+        }
+        .answer-item-detail-card {
+          padding: 9px;
+          max-height: min(280px, 38vh);
+        }
+        .controls {
+          justify-content: center;
+        }
+      .button-row {
+        width: 100%;
+        justify-content: center;
+      }
+      button {
+        flex: 1 1 0;
+        max-width: 180px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="scene-particles" aria-hidden="true"></div>
+  <div class="game-shell">
+    <div class="top-bar">
+      <div class="stat" data-icon="✦"><div class="stat-label">Score</div><div class="stat-value" id="scoreValue">0</div></div>
+      <div class="stat" data-icon="◉"><div class="stat-label">Length</div><div class="stat-value" id="lengthValue">4</div></div>
+      <div class="stat" data-icon="⚡"><div class="stat-label">Streak</div><div class="stat-value" id="streakValue">0</div></div>
+      <div class="stat" data-icon="◎"><div class="stat-label">Round</div><div class="stat-value" id="rowValue">1 / 7</div></div>
+    </div>
+    <div class="bottom-panel">
+      <div class="message-card" data-sentiment="neutral">
+        <div class="message-main" id="messageMain">Mission Ready</div>
+        <div class="message-sub" id="messageSub">Press any arrow key to begin.</div>
+      </div>
+    </div>
+    <div class="playfield-layout">
+      <div class="board-wrap">
+        <div class="board-stage">
+          <canvas id="gameCanvas" aria-label="Alpha Snake"></canvas>
+        </div>
+        <aside class="answer-rail" aria-label="Correct answers">
+          <div class="answer-rail-header">
+            <div class="answer-rail-kicker">Round Answers</div>
+            <div class="answer-rail-title">Correct pattern ledger</div>
+          </div>
+          <div class="answer-list" id="answerList"></div>
+        </aside>
+      </div>
+    </div>
+    <div class="controls">
+      <div>Arrow keys to steer. Space pauses.</div>
+      <div class="button-row">
+        <button id="restartButton" type="button">Restart</button>
+        <button id="soundButton" type="button" class="secondary">Sound: On</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    // ============================================
+    // 1. CONFIG SYSTEM
+    // ============================================
+    const CONFIG = {
+      cols: 20,
+      rows: 20,
+      tickMs: 260,
+      startLength: 4,
+      growthCorrect: 2,
+      shrinkWrong: 2,
+      totalRounds: 7,
+      firstRowY: 12,
+      rowGap: 4,
+      allowSelfCollision: false,
+      wallDeath: false, // DISABLED for infinite wrapping
+      missPenalty: true,
+      debugHitbox: false,
+      optionDistanceMinRatio: 0.5,
+      optionDistanceMaxExtra: 4,
+      optionMinSeparation: 6,
+      optionPlacementAttempts: 80,
+      rowAdvanceDelay: 220,
+      startDelayMs: 1200,
+      optionCenterLeft: 7,
+      optionCenterRight: 13
+    };
+
+    const PATTERNS = {
+      bullish: [
+        "Hammer",
+        "Bullish Engulfing",
+        "Morning Star",
+        "Piercing Line",
+        "Three White Soldiers",
+        "Inverted Hammer",
+        "Dragonfly Doji",
+        "Three Inside Up",
+        "Bullish Abandoned Baby",
+        "Takuri",
+        "Bullish Harami",
+        "Tweezer Bottom",
+        "Bullish Counterattack",
+        "Morning Star Doji",
+        "Rising Three",
+        "Three Outside Up",
+        "Bullish Kicker",
+        "Bullish Belt Hold Pattern",
+        "Bullish Separating Lines Pattern",
+        "Ladder Bottom Pattern"
+      ],
+      bearish: [
+        "Shooting Star",
+        "Bearish Engulfing",
+        "Evening Star",
+        "Dark Cloud Cover",
+        "Three Black Crows",
+        "Hanging Man",
+        "Gravestone Doji",
+        "Two Crows",
+        "Advance Block",
+        "Upside Gap Two Crows Pattern",
+        "Bearish Harami",
+        "Tweezer Top",
+        "Bearish Counterattack",
+        "Evening Star Doji",
+        "Falling Three",
+        "Bearish Abandoned Baby",
+        "Three Outside Down",
+        "Three Inside Down",
+        "Bearish Kicker",
+        "Bearish Belt Hold Pattern",
+        "Bearish Doji Star Pattern",
+        "Bearish Separating Lines"
+      ]
+    };
+
+    const PATTERN_HINTS = {
+      "Hammer": "Bullish reversal",
+      "Bullish Engulfing": "Strong bullish reversal",
+      "Morning Star": "Bullish reversal",
+      "Piercing Line": "Bullish recovery",
+      "Piercing Pattern": "Bullish recovery",
+      "Three White Soldiers": "Bullish continuation",
+      "Inverted Hammer": "Bullish reversal",
+      "Dragonfly Doji": "Bullish rejection",
+      "Three Inside Up": "Bullish reversal",
+      "Bullish Abandoned Baby": "Bullish reversal gap",
+      "Abandoned Baby Bullish": "Bullish reversal gap",
+      "Takuri": "Bullish rejection",
+      "Bullish Harami": "Bullish reversal setup",
+      "Tweezer Bottom": "Bullish support reversal",
+      "Bullish Counterattack": "Bullish reversal defense",
+      "Morning Star Doji": "Bullish doji reversal",
+      "Rising Three": "Bullish continuation",
+      "Three Outside Up": "Bullish follow-through reversal",
+      "Bullish Kicker": "Shock bullish reversal",
+      "Bullish Belt Hold Pattern": "Bullish opening drive",
+      "Bullish Separating Lines Pattern": "Continuation, same-open reclaim",
+      "Ladder Bottom Pattern": "Bullish base reversal",
+
+      "Shooting Star": "Bearish signal",
+      "Bearish Engulfing": "Strong bearish reversal",
+      "Evening Star": "Bearish reversal",
+      "Dark Cloud Cover": "Bearish reversal",
+      "Three Black Crows": "Bearish continuation",
+      "Hanging Man": "Bearish warning",
+      "Gravestone Doji": "Bearish rejection",
+      "Two Crows": "Bearish reversal",
+      "Advance Block": "Bearish exhaustion",
+      "Upside Gap Two Crows Pattern": "Bearish reversal",
+      "Upside Gap Two Crows": "Bearish reversal",
+      "Bearish Harami": "Bearish reversal setup",
+      "Tweezer Top": "Bearish resistance reversal",
+      "Bearish Counterattack": "Bearish reversal defense",
+      "Evening Star Doji": "Bearish doji reversal",
+      "Falling Three": "Bearish continuation",
+      "Bearish Abandoned Baby": "Bearish reversal gap",
+      "Three Outside Down": "Bearish follow-through reversal",
+      "Three Inside Down": "Bearish reversal confirmation",
+      "Bearish Kicker": "Shock bearish reversal",
+      "Bearish Belt Hold Pattern": "Bearish opening drive",
+      "Bearish Doji Star Pattern": "Bearish doji reversal",
+      "Bearish Separating Lines": "Continuation, same-open rejection"
+    };
+
+    const PATTERN_DETAILS = {
+      "Hammer": {
+        summary: "Single-candle bullish reversal with a long lower wick and a small real body near the high.",
+        structure: "Sellers push down first, but buyers recover most of the session and force the close back near the open.",
+        context: "Best after a decline, near support, or after a flush that fails to keep price below the prior swing low.",
+        confirmation: "A green follow-through candle, stronger relative volume, and in derivatives a price rise with stable or rising OI support real buyer control."
+      },
+      "Bullish Engulfing": {
+        summary: "Two-candle bullish reversal where the second real body fully engulfs the first.",
+        structure: "A weak red candle is followed by a larger green candle that overwhelms the prior session's body.",
+        context: "Best after a short downtrend or pullback into support where sellers are already stretched.",
+        confirmation: "A close above nearby resistance, expanding volume, and in futures a price rise with rising OI improve quality."
+      },
+      "Morning Star": {
+        summary: "Three-candle bullish reversal: selloff, indecision, then a strong recovery candle.",
+        structure: "The middle candle shows momentum loss, and the third candle proves buyers took back control.",
+        context: "Best after sustained weakness, especially when the third candle reclaims a prior value area.",
+        confirmation: "The third candle should close well into the first candle's body with better volume than the middle candle."
+      },
+      "Piercing Line": {
+        summary: "Two-candle bullish reversal where the second candle recovers deeply into the prior red body.",
+        structure: "The market opens weak but buyers reverse the session and close above the midpoint of the first candle.",
+        context: "Works best after a drop into support or after an emotional bearish session that fails to continue lower.",
+        confirmation: "A second close above the midpoint, improving breadth or volume, and in derivatives price up with rising OI support the reversal."
+      },
+      "Piercing Pattern": {
+        summary: "Two-candle bullish reversal where the second candle recovers deeply into the prior red body.",
+        structure: "The market opens weak but buyers reverse the session and close above the midpoint of the first candle.",
+        context: "Works best after a drop into support or after an emotional bearish session that fails to continue lower.",
+        confirmation: "A second close above the midpoint, improving breadth or volume, and in derivatives price up with rising OI support the reversal."
+      },
+      "Three White Soldiers": {
+        summary: "Three strong green candles showing persistent bullish follow-through.",
+        structure: "Each candle opens near the prior body and closes progressively higher, showing steady demand.",
+        context: "Best after a base or early trend turn, not after an already overextended vertical rally.",
+        confirmation: "Healthy volume and limited upper wicks matter more than just seeing three green candles."
+      },
+      "Inverted Hammer": {
+        summary: "Single-candle bullish reversal candidate with a long upper wick after a decline.",
+        structure: "Buyers show they can lift price sharply even if the close is not strong yet.",
+        context: "Best after a down move where the next session can confirm by pushing above the high.",
+        confirmation: "This pattern needs follow-through more than a hammer does. Higher volume and a close above the wick high strengthen it."
+      },
+      "Dragonfly Doji": {
+        summary: "Doji with a long lower shadow that signals rejection of lower prices.",
+        structure: "The market trades down hard, but finishes back near the open, leaving almost no upper body.",
+        context: "Best at support or after a panic flush where sellers fail to hold the break.",
+        confirmation: "A subsequent higher close, improving volume, and failed follow-through on the downside confirm the rejection."
+      },
+      "Three Inside Up": {
+        summary: "Bullish reversal built from a harami-style pause followed by confirmation higher.",
+        structure: "A large bearish candle is followed by a smaller inside candle, then a bullish confirmation candle.",
+        context: "Best after a decline where momentum is fading rather than accelerating.",
+        confirmation: "The third candle should break above the second candle's high. Volume expansion on the third candle helps."
+      },
+      "Bullish Abandoned Baby": {
+        summary: "Gap-based bullish exhaustion reversal with an isolated doji between the trend candles.",
+        structure: "A selloff candle is followed by a detached doji and then a strong bullish response.",
+        context: "More powerful in markets that gap cleanly, or around panic lows where sentiment gets washed out.",
+        confirmation: "A decisive third candle and a recovery back above nearby supply matter more than the doji alone."
+      },
+      "Abandoned Baby Bullish": {
+        summary: "Gap-based bullish exhaustion reversal with an isolated doji between the trend candles.",
+        structure: "A selloff candle is followed by a detached doji and then a strong bullish response.",
+        context: "More powerful in markets that gap cleanly, or around panic lows where sentiment gets washed out.",
+        confirmation: "A decisive third candle and a recovery back above nearby supply matter more than the doji alone."
+      },
+      "Takuri": {
+        summary: "Long lower-shadow reversal candle that signals a failed downside washout.",
+        structure: "It is a stronger rejection-style candle, similar to a hammer or dragonfly, but with an extreme lower probe.",
+        context: "Best after a climactic selloff or stop-run into visible support.",
+        confirmation: "Look for quick follow-through higher and stronger volume on the rebound than on the failed breakdown."
+      },
+      "Bullish Harami": {
+        summary: "Two-candle bullish reversal setup where a small second candle sits inside a larger bearish body.",
+        structure: "The pattern signals that downside momentum is compressing, but it does not prove reversal by itself.",
+        context: "Best after a decline into support or when bearish momentum is visibly slowing.",
+        confirmation: "Treat it as an early warning. A break above the inside candle high, stronger volume, or price up with rising OI confirm better."
+      },
+      "Tweezer Bottom": {
+        summary: "Support reversal where two candles reject the same low area.",
+        structure: "The repeated low shows sellers cannot extend the breakdown despite getting another attempt.",
+        context: "Best near a prior swing low, anchored VWAP, moving average support, or a demand zone.",
+        confirmation: "A bounce through nearby resistance is more important than the equal lows themselves."
+      },
+      "Bullish Counterattack": {
+        summary: "Bullish reversal where the market answers a bearish candle with a close back near the same level.",
+        structure: "Sellers push first, but buyers counter hard enough to neutralize the prior close area.",
+        context: "Useful after a down move when the market is testing support and refuses to accept lower prices.",
+        confirmation: "The next candle should push higher. Volume expansion or price up with rising OI supports the reversal."
+      },
+      "Morning Star Doji": {
+        summary: "A more indecisive version of the morning star where the middle candle is a doji.",
+        structure: "The doji marks a clearer pause between the selloff and the recovery attempt.",
+        context: "Best after a sharp decline or emotional washout where trend momentum is visibly stalling.",
+        confirmation: "The third candle must do the real work by closing back into the first candle's body."
+      },
+      "Rising Three": {
+        summary: "Bullish continuation pattern where a strong impulse is followed by a controlled pullback.",
+        structure: "Small countertrend candles stay inside the range of the first strong bullish candle before trend resumes higher.",
+        context: "Best in an established uptrend, not at the very bottom of a range-bound market.",
+        confirmation: "The breakout candle should close above the pause structure with steady or improving volume."
+      },
+      "Three Outside Up": {
+        summary: "Bullish reversal where an engulfing pattern gets immediate follow-through.",
+        structure: "The third candle removes doubt by confirming that the engulfing move was not just a one-bar squeeze.",
+        context: "Best after a pullback or decline where bears are losing control.",
+        confirmation: "A close above the engulfing high and stronger participation than the prior two candles improve odds."
+      },
+      "Bullish Kicker": {
+        summary: "Shock bullish reversal driven by an abrupt sentiment flip, often after news or a gap-style open.",
+        structure: "A bearish candle is followed by a strong bullish session that starts from a clearly different tone rather than a slow grind.",
+        context: "Best after capitulation or a failed breakdown where the market snaps back aggressively.",
+        confirmation: "This is stronger than a normal reversal if volume expands and price keeps holding above the kicker candle's midpoint."
+      },
+      "Bullish Belt Hold Pattern": {
+        summary: "Single-session opening drive where buyers seize control from the open and keep it.",
+        structure: "The candle opens near its low and trends upward with little lower shadow.",
+        context: "Most useful after weakness, at support, or at the start of an emerging trend leg.",
+        confirmation: "A strong close near the high and continued acceptance above the body on the next candle matter most."
+      },
+      "Bullish Separating Lines Pattern": {
+        summary: "Bullish continuation pattern where buyers reclaim the same opening zone and resume the uptrend.",
+        structure: "A temporary bearish interruption is followed by a bullish candle that opens around the same level and pushes higher.",
+        context: "Best inside an existing uptrend or after a shallow retest, not as a bottom-fishing signal.",
+        confirmation: "The next candle should continue higher. Price up with rising OI supports continuation better than reversal-style interpretation."
+      },
+      "Ladder Bottom Pattern": {
+        summary: "Multi-candle bullish base reversal that ends a persistent decline with exhaustion then recovery.",
+        structure: "The pattern shows a sequence of weak candles, a stabilization phase, and finally a stronger bullish reclaim candle.",
+        context: "Best after an extended downtrend where the market has had time to actually exhaust sellers.",
+        confirmation: "Look for follow-through above the recovery candle high rather than treating the pattern as complete on sight."
+      },
+      "Shooting Star": {
+        summary: "Single-candle bearish reversal with a long upper wick that shows failed upside acceptance.",
+        structure: "Buyers push price higher, but sellers force the close back near the open.",
+        context: "Best after a rally, at resistance, or after a breakout attempt that immediately loses momentum.",
+        confirmation: "A lower close next session and higher relative selling volume matter more than the wick alone."
+      },
+      "Bearish Engulfing": {
+        summary: "Two-candle bearish reversal where the second real body fully engulfs the first.",
+        structure: "A bullish candle is overwhelmed by a larger bearish candle, showing a real handoff to sellers.",
+        context: "Best after a rally or late-stage push into resistance when buyers are getting trapped.",
+        confirmation: "A close below nearby support, stronger volume, and in derivatives price down with rising OI improve quality."
+      },
+      "Evening Star": {
+        summary: "Three-candle bearish reversal: rally, indecision, then a strong downside response.",
+        structure: "The middle candle shows momentum loss, and the third candle confirms sellers have taken control.",
+        context: "Best after a mature up move, at resistance, or after a failed breakout.",
+        confirmation: "The third candle should close deep into the first candle's body and ideally carry stronger volume."
+      },
+      "Dark Cloud Cover": {
+        summary: "Two-candle bearish reversal where the second candle closes deep into the prior green body.",
+        structure: "Buyers start strong, but sellers reverse the session and close below the midpoint of the first candle.",
+        context: "Best after a rally into resistance or after an overextended green candle that cannot hold gains.",
+        confirmation: "The second candle should reject the highs decisively. Added selling volume or rising OI on a down move makes it stronger."
+      },
+      "Three Black Crows": {
+        summary: "Three strong red candles showing persistent bearish pressure and follow-through.",
+        structure: "Each candle opens within the prior body and closes lower, showing organized selling rather than a single spike.",
+        context: "Best after a rollover from highs or as a trend continuation after a weak bounce fails.",
+        confirmation: "Healthy body size, small lower wicks, and sustained downside volume matter more than just counting three red candles."
+      },
+      "Hanging Man": {
+        summary: "Single-candle bearish warning after a rally with a long lower shadow.",
+        structure: "The long lower wick says the market saw aggressive selling even though the close held up.",
+        context: "Best at the top of an up move. By itself it is only a warning, not a completed reversal.",
+        confirmation: "A lower close on the next candle is essential. Without confirmation, it often becomes noise."
+      },
+      "Gravestone Doji": {
+        summary: "Doji with a long upper shadow showing sharp rejection of higher prices.",
+        structure: "Price trades well above the open but closes back near it, leaving almost no lower body.",
+        context: "Best after an upswing, near resistance, or after a failed intraday breakout.",
+        confirmation: "A weak next candle, stronger sell volume, and inability to retake the doji high improve the read."
+      },
+      "Two Crows": {
+        summary: "Bearish reversal sequence that shows sellers stepping in after an up move.",
+        structure: "The market opens optimistic, but back-to-back bearish action starts to reverse that sentiment.",
+        context: "Best after a rally when upside continuation is expected and then suddenly denied.",
+        confirmation: "Follow-through lower matters because the pattern itself is more nuanced and less common than engulfing or star reversals."
+      },
+      "Advance Block": {
+        summary: "Bearish exhaustion pattern where an uptrend keeps advancing but with weakening candle quality.",
+        structure: "The market still closes higher, yet bodies shrink or upper shadows grow, showing buyers are losing efficiency.",
+        context: "Useful late in an uptrend when price keeps rising but momentum quality is deteriorating.",
+        confirmation: "A break below the pattern low or a heavy red follow-through candle makes the warning actionable."
+      },
+      "Upside Gap Two Crows Pattern": {
+        summary: "Bearish reversal where an upside gap fails and sellers quickly take over.",
+        structure: "After strength, the market gaps optimistically, then prints back-to-back bearish evidence that the gap cannot sustain.",
+        context: "Best after an advance, especially when traders are chasing a breakout.",
+        confirmation: "Look for continuation lower below the pattern low. A failed retest of the gap zone is especially useful."
+      },
+      "Upside Gap Two Crows": {
+        summary: "Bearish reversal where an upside gap fails and sellers quickly take over.",
+        structure: "After strength, the market gaps optimistically, then prints back-to-back bearish evidence that the gap cannot sustain.",
+        context: "Best after an advance, especially when traders are chasing a breakout.",
+        confirmation: "Look for continuation lower below the pattern low. A failed retest of the gap zone is especially useful."
+      },
+      "Bearish Harami": {
+        summary: "Two-candle bearish reversal setup where a small second candle sits inside a larger bullish body.",
+        structure: "The pattern shows upside momentum compressing, but not yet fully reversing.",
+        context: "Best after a rally into resistance or after a fast move where buyers may be tiring.",
+        confirmation: "A break below the inside candle low, heavier sell volume, or price down with rising OI confirm better than the pattern alone."
+      },
+      "Tweezer Top": {
+        summary: "Resistance reversal where two candles reject the same high area.",
+        structure: "Repeated failure at the same high suggests buyers cannot clear supply despite another attempt.",
+        context: "Best near prior highs, round-number resistance, or after a breakout stalls.",
+        confirmation: "A breakdown below local support is more important than the equal highs by themselves."
+      },
+      "Bearish Counterattack": {
+        summary: "Bearish reversal where the market answers a bullish candle with a close back near the same level.",
+        structure: "Buyers push first, but sellers counter hard enough to neutralize the prior close area.",
+        context: "Useful after an up move when price runs into supply and loses follow-through.",
+        confirmation: "The next candle should extend lower. Rising sell volume or price down with rising OI make it more credible."
+      },
+      "Evening Star Doji": {
+        summary: "A more indecisive version of the evening star where the middle candle is a doji.",
+        structure: "The doji makes the momentum loss more obvious before the bearish reversal candle appears.",
+        context: "Best after a rally or euphoric extension when the market stops accepting higher prices.",
+        confirmation: "The third candle needs to close decisively lower. Without that, the doji is just indecision."
+      },
+      "Falling Three": {
+        summary: "Bearish continuation pattern where a strong downside impulse pauses, then resumes lower.",
+        structure: "Small countertrend candles stay inside the range of the first strong bearish candle before the trend breaks lower again.",
+        context: "Best in an established downtrend or after a weak bounce, not as a top-calling signal by itself.",
+        confirmation: "The continuation candle should close below the pause structure with steady or improving sell volume."
+      },
+      "Bearish Abandoned Baby": {
+        summary: "Gap-based bearish exhaustion reversal with an isolated doji between the trend candles.",
+        structure: "A rally candle is followed by a detached doji and then a strong bearish response.",
+        context: "Most powerful in gapping markets or after an emotional climax high where buyers are trapped.",
+        confirmation: "The third candle and failure to reclaim the doji zone matter more than the isolated doji itself."
+      },
+      "Three Outside Down": {
+        summary: "Bearish reversal where an engulfing pattern gets immediate downside confirmation.",
+        structure: "The third candle removes doubt by proving the engulfing candle was the start of a handoff to sellers.",
+        context: "Best after a rally or a weak breakout that loses acceptance.",
+        confirmation: "A close below the engulfing low and stronger participation than the prior candles improves the read."
+      },
+      "Three Inside Down": {
+        summary: "Bearish reversal built from a harami-style pause followed by confirmation lower.",
+        structure: "A large bullish candle is followed by a smaller inside candle, then a bearish confirmation candle.",
+        context: "Best after a rally where buying momentum is fading rather than accelerating.",
+        confirmation: "The third candle should break below the inside candle low. Volume on the breakdown matters."
+      },
+      "Bearish Kicker": {
+        summary: "Shock bearish reversal driven by an abrupt sentiment flip, often after news or a failed bullish narrative.",
+        structure: "A bullish candle is followed by a hard bearish session that starts from a clearly different tone rather than a gentle rollover.",
+        context: "Best after an extended rise, a breakout trap, or an overbought move into resistance.",
+        confirmation: "Unlike bearish separating lines, this is a sudden reversal, not a same-open continuation. Heavy sell volume and price down with rising OI make it much stronger."
+      },
+      "Bearish Belt Hold Pattern": {
+        summary: "Single-session opening drive where sellers seize control from the open and keep it.",
+        structure: "The candle opens near its high and trends lower with little upper shadow.",
+        context: "Most useful after strength, at resistance, or at the start of a new downside leg.",
+        confirmation: "A close near the low and continued acceptance below the body on the next candle matter most."
+      },
+      "Bearish Doji Star Pattern": {
+        summary: "Bearish reversal warning where an uptrend pauses into a doji before sellers confirm.",
+        structure: "The doji marks hesitation after strength, but the pattern only becomes meaningful if sellers show up next.",
+        context: "Best after a rally into resistance or after a trend becomes stretched.",
+        confirmation: "A bearish follow-through candle and inability to retake the doji high are the key checks."
+      },
+      "Bearish Separating Lines": {
+        summary: "Bearish continuation pattern where sellers defend the same opening zone and resume the downtrend.",
+        structure: "A brief bullish interruption is followed by a bearish candle that opens around the same level and drives lower.",
+        context: "Best inside an existing downtrend or after a weak retest, not as a surprise reversal at the top.",
+        confirmation: "This differs from a bearish kicker: separating lines continue an existing move, while a kicker is a sudden sentiment shock. A lower close, rising sell volume, and price down with rising OI support continuation."
+      }
+    };
+
+    const ROUND_QUESTIONS = [
+      { text: "You want to go long", targetSentiment: "bullish" },
+      { text: "You want to go short", targetSentiment: "bearish" }
+    ];
+
+    const DIRECTIONS = {
+      up: { x: 0, y: -1 },
+      down: { x: 0, y: 1 },
+      left: { x: -1, y: 0 },
+      right: { x: 1, y: 0 }
+    };
+
+    // ============================================
+    // 2. GLOBAL GAME STATE
+    // ============================================
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreValue = document.getElementById("scoreValue");
+    const lengthValue = document.getElementById("lengthValue");
+    const streakValue = document.getElementById("streakValue");
+    const rowValue = document.getElementById("rowValue");
+    const messageMain = document.getElementById("messageMain");
+    const messageSub = document.getElementById("messageSub");
+    const restartButton = document.getElementById("restartButton");
+    const soundButton = document.getElementById("soundButton");
+    const answerList = document.getElementById("answerList");
+    const gameShell = document.querySelector(".game-shell");
+    const topBar = document.querySelector(".top-bar");
+    const controls = document.querySelector(".controls");
+    const messageCard = document.querySelector(".message-card");
+    const sceneParticles = document.querySelector(".scene-particles");
+
+    const state = {
+      snake: [],
+      previousSnake: [],
+      score: 0,
+      streak: 0,
+      currentRoundIndex: 0,
+      activeRound: null,
+      gameMode: "ready",
+      accumulator: 0,
+      lastTimestamp: 0,
+      currentDirection: { ...DIRECTIONS.up },
+      nextDirection: { ...DIRECTIONS.up },
+      growthQueue: 0,
+      flash: null,
+      rounds: [],
+      answerHistory: [],
+      expandedAnswerIndex: -1,
+      rowResolved: false,
+      roundAdvanceAt: 0,
+      activeRoundSpawnAt: 0,
+      startAt: 0,
+      soundEnabled: true,
+      pulse: 0,
+      facingDirection: { ...DIRECTIONS.up }
+    };
+
+    let audioContext = null;
+
+    function cloneSnake(snake) { return snake.map((segment) => ({ x: segment.x, y: segment.y })); }
+    function sameCell(a, b) { return a.x === b.x && a.y === b.y; }
+    function setMessage(main, sub) {
+      if (!main && !sub) return;
+      messageCard.dataset.sentiment = "neutral";
+      messageMain.innerHTML = `<span class="prompt-line"><span class="prompt-icon">⚡</span><span>${main}</span></span>`;
+      messageSub.textContent = sub;
+      messageCard.classList.remove("prompt-enter");
+      void messageCard.offsetWidth;
+      messageCard.classList.add("prompt-enter");
+    }
+    function setPromptText(text, sentiment = null, subtext = null) {
+      const icon = sentiment === "bullish" ? "📈" : sentiment === "bearish" ? "📉" : "⚡";
+      messageCard.dataset.sentiment = sentiment || "neutral";
+      messageMain.innerHTML = `<span class="prompt-line"><span class="prompt-icon">${icon}</span><span>${text}</span></span>`;
+      messageSub.textContent = subtext || (
+        sentiment === "bullish"
+          ? "Guide the snake into the bullish candlestick card."
+          : sentiment === "bearish"
+            ? "Guide the snake into the bearish candlestick card."
+            : "Press any arrow key to begin."
+      );
+      messageCard.classList.remove("prompt-enter");
+      void messageCard.offsetWidth;
+      messageCard.classList.add("prompt-enter");
+    }
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+    function getMissionIconSvg(sentiment) {
+      if (sentiment === "bullish") {
+        return `
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M17 46L28 35L35 40L48 22" fill="none" stroke="#d9ffd3" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M41 22H48V29" fill="none" stroke="#d9ffd3" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M22 16V47" fill="none" stroke="#7bff8c" stroke-width="4" stroke-linecap="round"/>
+            <rect x="17" y="27" width="10" height="15" rx="3" fill="#71f58b"/>
+            <path d="M40 11V46" fill="none" stroke="#9aff7b" stroke-width="4" stroke-linecap="round"/>
+            <rect x="35" y="18" width="10" height="21" rx="3" fill="#b0ff7d"/>
+          </svg>`;
+      }
+      if (sentiment === "bearish") {
+        return `
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <path d="M17 20L29 31L35 26L48 42" fill="none" stroke="#ffe1e7" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M41 42H48V35" fill="none" stroke="#ffe1e7" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M22 13V46" fill="none" stroke="#ff7c8f" stroke-width="4" stroke-linecap="round"/>
+            <rect x="17" y="19" width="10" height="18" rx="3" fill="#ff6f86"/>
+            <path d="M40 18V51" fill="none" stroke="#ff9aa5" stroke-width="4" stroke-linecap="round"/>
+            <rect x="35" y="27" width="10" height="20" rx="3" fill="#ff8797"/>
+          </svg>`;
+      }
+      return `
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M30 8L18 34H29L24 56L46 26H34L40 8H30Z" fill="#ffd95a"/>
+        </svg>`;
+    }
+    function getMissionWatermarkSvg() {
+      return `
+        <svg viewBox="0 0 160 80" class="mission-watermark" aria-hidden="true">
+          <path d="M16 54L40 32L60 40L84 20L110 34L142 16" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M34 18V58M34 28L34 44" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <path d="M74 12V50M74 22L74 36" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+          <path d="M118 26V64M118 34L118 52" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        </svg>`;
+    }
+    function renderMissionBanner(title, subtitle, sentiment = "neutral") {
+      messageCard.dataset.sentiment = sentiment || "neutral";
+      messageMain.innerHTML = `
+        <div class="mission-line">
+          <div class="mission-icon-badge" aria-hidden="true">${getMissionIconSvg(sentiment)}</div>
+          <div class="mission-copy">
+            <div class="mission-title">${escapeHtml(title)}</div>
+            <div class="mission-subtitle">${escapeHtml(subtitle)}</div>
+          </div>
+          ${getMissionWatermarkSvg()}
+        </div>`;
+      messageSub.textContent = subtitle || "";
+      messageCard.classList.remove("prompt-enter");
+      void messageCard.offsetWidth;
+      messageCard.classList.add("prompt-enter");
+    }
+    function setMessage(main, sub) {
+      if (!main && !sub) return;
+      renderMissionBanner(main, sub || "", "neutral");
+    }
+    function setPromptText(text, sentiment = null, subtext = null) {
+      const title = sentiment === "bullish"
+        ? "GO LONG"
+        : sentiment === "bearish"
+          ? "GO SHORT"
+          : text;
+      const subtitle = subtext || (
+        sentiment === "bullish"
+          ? "Guide the snake into the bullish candlestick card."
+          : sentiment === "bearish"
+            ? "Guide the snake into the bearish candlestick card."
+            : "Press any arrow key to begin."
+      );
+      renderMissionBanner(title, subtitle, sentiment || "neutral");
+    }
+    function hideNonBoardUi() {
+      topBar.style.display = "none";
+      gameShell.style.gridTemplateRows = "auto 1fr auto";
+      controls.style.visibility = "visible";
+      controls.style.pointerEvents = "auto";
+      messageCard.style.visibility = "visible";
+      messageCard.style.pointerEvents = "auto";
+    }
+    function createAmbientParticles() {
+      if (sceneParticles.children.length) return;
+      for (let i = 0; i < 22; i++) {
+        const particle = document.createElement("span");
+        particle.style.left = `${Math.random() * 100}%`;
+        particle.style.top = `${Math.random() * 100}%`;
+        particle.style.setProperty("--size", `${4 + Math.random() * 10}px`);
+        particle.style.setProperty("--duration", `${9 + Math.random() * 10}s`);
+        particle.style.setProperty("--delay", `${Math.random() * -12}s`);
+        sceneParticles.appendChild(particle);
+      }
+    }
+    function pulseStat(element) {
+      const card = element.closest(".stat");
+      if (!card) return;
+      card.classList.remove("value-pop");
+      void card.offsetWidth;
+      card.classList.add("value-pop");
+    }
+    function updateHudValue(element, value) {
+      const next = String(value);
+      if (element.textContent !== next) {
+        element.textContent = next;
+        pulseStat(element);
+      }
+    }
+    function getCorrectOptionForRound(round) {
+      if (!round) return null;
+      return round[round.correctSide] || null;
+    }
+    function getPatternDetail(name) {
+      return PATTERN_DETAILS[name] || {
+        summary: "Pattern-specific price action clue.",
+        structure: "Read the candle structure together with trend position, not in isolation.",
+        context: "The best patterns appear after a clear prior move into support or resistance.",
+        confirmation: "Use follow-through, volume, and if relevant derivatives OI to confirm the signal."
+      };
+    }
+    function buildAnswerHistory() {
+      return Array.from({ length: CONFIG.totalRounds }, (_, index) => ({
+        round: index + 1,
+        status: "pending",
+        name: "",
+        sentiment: "neutral",
+        hint: ""
+      }));
+    }
+    function bindAnswerHistoryEvents() {
+      if (!answerList) return;
+      if (answerList.dataset.bound === "true") return;
+      answerList.dataset.bound = "true";
+      answerList.addEventListener("click", (event) => {
+        const triggerEl = event.target.closest("[data-answer-action]");
+        if (!triggerEl) return;
+        event.preventDefault();
+        const index = Number(triggerEl.dataset.index);
+        if (!Number.isInteger(index)) return;
+        const action = triggerEl.dataset.answerAction || "toggle";
+        state.expandedAnswerIndex = action === "close"
+          ? -1
+          : (state.expandedAnswerIndex === index ? -1 : index);
+        renderAnswerHistory();
+      });
+    }
+    function renderAnswerHistory() {
+      if (!answerList) return;
+      const focusMode = state.expandedAnswerIndex !== -1;
+      answerList.dataset.focus = focusMode ? "true" : "false";
+      answerList.innerHTML = state.answerHistory.map((item, index) => {
+        const railGroup = !focusMode
+          ? "rest"
+          : index < state.expandedAnswerIndex
+            ? "above"
+            : index > state.expandedAnswerIndex
+              ? "below"
+              : "active";
+        if (item.status === "filled") {
+          const detail = getPatternDetail(item.name);
+          const isOpen = state.expandedAnswerIndex === index;
+          return `
+            <div class="answer-item" data-open="${isOpen}" data-status="filled" data-sentiment="${item.sentiment}" data-rail-group="${railGroup}">
+              <div class="answer-item-media">
+                <canvas class="answer-item-canvas" data-pattern="${escapeHtml(item.name)}" aria-hidden="true"></canvas>
+              </div>
+              <div class="answer-item-copy">
+                <div class="answer-item-summary"${isOpen ? "" : ` data-index="${index}" data-answer-action="toggle"`}>
+                  <div class="answer-item-head">
+                    <div class="answer-item-meta">
+                      <div class="answer-item-name">${escapeHtml(item.name)}</div>
+                      <div class="answer-item-hint">${escapeHtml(item.hint)}</div>
+                    </div>
+                    <div class="answer-item-controls">
+                      ${isOpen ? "" : `<button class="answer-item-action" type="button" data-index="${index}" data-answer-action="toggle">Learn more</button>`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="answer-item-detail-wrap">
+                <div class="answer-item-detail-card">
+                  <div class="answer-item-detail-head">
+                    <div class="answer-item-detail-title">${escapeHtml(item.name)}</div>
+                    <button class="answer-item-detail-close answer-item-action" type="button" data-index="${index}" data-answer-action="close">Close</button>
+                  </div>
+                  <div class="answer-item-detail-body">
+                    <div class="answer-item-detail-summary">${escapeHtml(detail.summary)}</div>
+                    <div class="answer-item-detail-grid">
+                      <div class="answer-item-detail-block">
+                        <div class="answer-item-detail-label">What It Is</div>
+                        <div class="answer-item-detail-text">${escapeHtml(detail.structure)}</div>
+                      </div>
+                      <div class="answer-item-detail-block">
+                        <div class="answer-item-detail-label">How To Use It</div>
+                        <div class="answer-item-detail-text">${escapeHtml(detail.context)}</div>
+                      </div>
+                      <div class="answer-item-detail-block">
+                        <div class="answer-item-detail-label">Trend / Volume / OI Check</div>
+                        <div class="answer-item-detail-text">${escapeHtml(detail.confirmation)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+        }
+        return `
+              <div class="answer-item" data-status="pending" data-sentiment="neutral" data-rail-group="${railGroup}">
+              <div class="answer-item-media">
+                <div class="answer-item-ghost" aria-hidden="true"></div>
+              </div>
+              <div class="answer-item-copy">
+                <div class="answer-item-placeholder">Correct pattern reveals after the round is completed.</div>
+              </div>
+              </div>`;
+      }).join("");
+      renderAnswerPatternPreviews();
+      bindAnswerHistoryEvents();
+    }
+    function renderAnswerPatternPreviews() {
+      if (!answerList) return;
+      answerList.querySelectorAll(".answer-item-canvas").forEach((canvasEl) => {
+        const patternName = canvasEl.dataset.pattern;
+        if (!patternName) return;
+        const width = canvasEl.clientWidth || 34;
+        const height = canvasEl.clientHeight || 34;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvasEl.width = Math.floor(width * dpr);
+        canvasEl.height = Math.floor(height * dpr);
+        const previewCtx = canvasEl.getContext("2d");
+        previewCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        previewCtx.clearRect(0, 0, width, height);
+        const bg = previewCtx.createLinearGradient(0, 0, width, height);
+        bg.addColorStop(0, "rgba(24, 38, 34, 0.98)");
+        bg.addColorStop(1, "rgba(16, 26, 24, 0.98)");
+        previewCtx.fillStyle = bg;
+        previewCtx.beginPath();
+        previewCtx.roundRect(0, 0, width, height, Math.min(10, width * 0.24));
+        previewCtx.fill();
+        previewCtx.strokeStyle = "rgba(255,255,255,0.08)";
+        previewCtx.lineWidth = 1;
+        previewCtx.stroke();
+        drawCandles(previewCtx, patternName, 4, 4, width - 8, height - 8);
+      });
+    }
+    function syncDeviceMode() {
+      const width = window.innerWidth;
+      const shortEdge = Math.min(window.innerWidth, window.innerHeight);
+      let device = "desktop";
+      if (width <= 720 || shortEdge <= 500) device = "phone";
+      else if (width <= 1100 || shortEdge <= 820) device = "tablet";
+      document.documentElement.dataset.device = device;
+    }
+    function revealRoundAnswer(round) {
+      const correctOption = getCorrectOptionForRound(round);
+      if (!correctOption) return;
+      state.expandedAnswerIndex = -1;
+      state.answerHistory[round.rowIndex] = {
+        round: round.rowIndex + 1,
+        status: "filled",
+        name: correctOption.name,
+        sentiment: correctOption.sentiment,
+        hint: (PATTERN_HINTS[correctOption.name] || getPatternDetail(correctOption.name).summary || "Key price-action signal.")
+      };
+      renderAnswerHistory();
+    }
+    function setupCanvas() {
+      const wrap = canvas.parentElement;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(wrap.clientWidth * dpr);
+      canvas.height = Math.floor(wrap.clientHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function getBoardMetrics() {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const size = Math.max(180, Math.min(width, height) - 8);
+      return { boardX: (width - size) * 0.5, boardY: (height - size) * 0.5, boardSize: size, cellSize: size / CONFIG.cols };
+    }
+
+    // ============================================
+    // 3. INPUT SYSTEM
+    // ============================================
+    function handleArrowInput(key) {
+      const direction = (key === "ArrowUp") ? DIRECTIONS.up :
+                        (key === "ArrowDown") ? DIRECTIONS.down :
+                        (key === "ArrowLeft") ? DIRECTIONS.left :
+                        (key === "ArrowRight") ? DIRECTIONS.right : null;
+      if (!direction) return;
+      if (state.gameMode === "ready" || state.gameMode === "gameover" || state.gameMode === "won") {
+        resetGame();
+        state.currentDirection = { ...direction };
+        state.nextDirection = { ...direction };
+        state.facingDirection = { ...direction };
+        startGame();
+        return;
+      }
+      if (state.gameMode !== "running") return;
+      if (isReverseDirection(direction, state.currentDirection)) return;
+      state.nextDirection = { ...direction };
+    }
+    function isReverseDirection(candidate, current) {
+      return candidate.x === -current.x && candidate.y === -current.y;
+    }
+
+    // ============================================
+    // 4. ROUND GENERATION SYSTEM
+    // ============================================
+    function shuffle(array) {
+      const result = array.slice();
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    function getTileCenter(tile) {
+      return { x: tile.x + tile.w * 0.5, y: tile.y + tile.h * 0.5 };
+    }
+    function tileDistanceToHead(tile, head) {
+      const center = getTileCenter(tile);
+      const headCenterX = head.x + 0.5;
+      const headCenterY = head.y + 0.5;
+      return Math.hypot(center.x - headCenterX, center.y - headCenterY);
+    }
+    function tilesOverlap(a, b) {
+      return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+    }
+    function tileOverlapsSnake(tile) {
+      return state.snake.some((segment) =>
+        segment.x >= tile.x &&
+        segment.x < tile.x + tile.w &&
+        segment.y >= tile.y &&
+        segment.y < tile.y + tile.h
+      );
+    }
+    function buildCandidateTile(x, y) {
+      return { x, y, w: 2, h: 2 };
+    }
+    function getOptionDistanceWindow(head) {
+      const headCenterX = head.x + 0.5;
+      const headCenterY = head.y + 0.5;
+      const furthestSideDistance = Math.max(
+        headCenterX,
+        CONFIG.cols - headCenterX,
+        headCenterY,
+        CONFIG.rows - headCenterY
+      );
+      const minDistance = Math.max(2, Math.floor(furthestSideDistance * CONFIG.optionDistanceMinRatio));
+      const maxDistance = Math.min(
+        Math.hypot(CONFIG.cols, CONFIG.rows),
+        minDistance + CONFIG.optionDistanceMaxExtra
+      );
+      return { minDistance, maxDistance };
+    }
+    function isTileCandidateValid(tile, head, otherTile = null, relaxed = false) {
+      if (tile.x < 0 || tile.y < 0 || tile.x + tile.w > CONFIG.cols || tile.y + tile.h > CONFIG.rows) {
+        return false;
+      }
+      if (tileOverlapsSnake(tile)) return false;
+      const distanceToHead = tileDistanceToHead(tile, head);
+      const { minDistance, maxDistance } = getOptionDistanceWindow(head);
+      const effectiveMinDistance = relaxed ? Math.max(2, minDistance - 2) : minDistance;
+      const effectiveMaxDistance = relaxed ? maxDistance + 2 : maxDistance;
+      if (distanceToHead < effectiveMinDistance || distanceToHead > effectiveMaxDistance) {
+        return false;
+      }
+      if (!otherTile) return true;
+      if (tilesOverlap(tile, otherTile)) return false;
+      const separation = Math.hypot(getTileCenter(tile).x - getTileCenter(otherTile).x, getTileCenter(tile).y - getTileCenter(otherTile).y);
+      if (separation < (relaxed ? CONFIG.optionMinSeparation - 2 : CONFIG.optionMinSeparation)) {
+        return false;
+      }
+      if (!relaxed && (tile.x === otherTile.x || tile.y === otherTile.y)) {
+        return false;
+      }
+      return true;
+    }
+    function findTileCandidates(head, otherTile = null, relaxed = false) {
+      const candidates = [];
+      for (let y = 0; y <= CONFIG.rows - 2; y++) {
+        for (let x = 0; x <= CONFIG.cols - 2; x++) {
+          const tile = buildCandidateTile(x, y);
+          if (isTileCandidateValid(tile, head, otherTile, relaxed)) candidates.push(tile);
+        }
+      }
+      return candidates;
+    }
+    function pickRandomTile(head, otherTile = null) {
+      let candidates = findTileCandidates(head, otherTile, false);
+      if (!candidates.length) candidates = findTileCandidates(head, otherTile, true);
+      if (!candidates.length) return buildCandidateTile(Math.max(0, Math.min(CONFIG.cols - 2, head.x + 2)), Math.max(0, Math.min(CONFIG.rows - 2, head.y - 2)));
+      return candidates[randomInt(0, candidates.length - 1)];
+    }
+    function positionRoundFromHead(round, head) {
+      const leftTile = pickRandomTile(head);
+      const rightTile = pickRandomTile(head, leftTile);
+      return {
+        ...round,
+        left: { ...round.left, ...leftTile },
+        right: { ...round.right, ...rightTile }
+      };
+    }
+    function generateRounds() {
+      const bullish = shuffle(PATTERNS.bullish);
+      const bearish = shuffle(PATTERNS.bearish);
+      return Array.from({ length: CONFIG.totalRounds }, (_, index) => {
+        // Place rows with enough gap
+        const y = (CONFIG.firstRowY - (index * CONFIG.rowGap) + 100 * CONFIG.rows) % CONFIG.rows;
+        const bullLeft = Math.random() < 0.5;
+        const question = ROUND_QUESTIONS[randomInt(0, ROUND_QUESTIONS.length - 1)];
+        const bull = { name: bullish[index], sentiment: "bullish", x: 0, y, w: 2, h: 2 };
+        const bear = { name: bearish[index], sentiment: "bearish", x: 0, y, w: 2, h: 2 };
+        const left = bullLeft ? bull : bear;
+        const right = bullLeft ? bear : bull;
+        return {
+          rowIndex: index,
+          y,
+          left,
+          right,
+          questionText: question.text,
+          targetSentiment: question.targetSentiment,
+          correctSide: left.sentiment === question.targetSentiment ? "left" : "right"
+        };
+      });
+    }
+    function getRoundSummary(round) {
+      if (!round) return "";
+      return `Target: Find the Bullish Pattern`;
+    }
+
+    // ============================================
+    // 5. MOVEMENT SYSTEM (WRAP LOGIC)
+    // ============================================
+    function buildStartingSnake() {
+      const startX = Math.floor(CONFIG.cols / 2);
+      const startY = CONFIG.rows - 2;
+      return Array.from({ length: CONFIG.startLength }, (_, index) => ({ x: startX, y: startY + index }));
+    }
+    function moveSnake() {
+      const head = state.snake[0];
+      if (!isReverseDirection(state.nextDirection, state.currentDirection)) {
+        state.currentDirection = { ...state.nextDirection };
+      }
+      
+      // New head with wrapping logic
+      let nextX = head.x + state.currentDirection.x;
+      let nextY = head.y + state.currentDirection.y;
+      
+      if (nextX < 0) nextX = CONFIG.cols - 1;
+      else if (nextX >= CONFIG.cols) nextX = 0;
+      if (nextY < 0) nextY = CONFIG.rows - 1;
+      else if (nextY >= CONFIG.rows) nextY = 0;
+
+      const newHead = { x: nextX, y: nextY };
+      state.facingDirection = { ...state.currentDirection };
+      state.previousSnake = cloneSnake(state.snake);
+      state.snake.unshift(newHead);
+      
+      if (state.growthQueue > 0) state.growthQueue -= 1;
+      else state.snake.pop();
+      
+      return newHead;
+    }
+
+    // ============================================
+    // 6. COLLISION SYSTEM (FIXED)
+    // ============================================
+    function getOptionRect(option) {
+      return { x: option.x, y: option.y, w: option.w, h: option.h };
+    }
+    function isInsidePatternTile(head, option) {
+      const rect = getOptionRect(option);
+      return head.x >= rect.x &&
+        head.x < rect.x + rect.w &&
+        head.y >= rect.y &&
+        head.y < rect.y + rect.h;
+    }
+    function checkChoiceCollision(head) {
+      if (!state.activeRound || state.rowResolved) return null;
+
+      if (isInsidePatternTile(head, state.activeRound.left)) return "left";
+      if (isInsidePatternTile(head, state.activeRound.right)) return "right";
+      return null;
+    }
+
+    function hasMissedRow(head) {
+      return false;
+    }
+
+    // ============================================
+    // 7. REWARD / PENALTY SYSTEM
+    // ============================================
+    function removeTailSegments(count) {
+      for (let i = 0; i < count; i++) {
+        if (state.snake.length > 1) state.snake.pop();
+      }
+    }
+
+    function applyCorrectReward(choiceName) {
+      state.score += 1;
+      state.streak += 1;
+      state.growthQueue += CONFIG.growthCorrect;
+      state.flash = { color: "95, 224, 122", alpha: 0.34 };
+      playTone("good");
+      setMessage("", "");
+    }
+
+    function applyWrongPenalty(choiceName, missed = false) {
+      // Check Game Over Condition
+      if (state.snake.length <= 1) {
+          state.gameMode = "gameover";
+          playTone("bad");
+          setMessage("", "");
+          return;
+      }
+
+      state.score -= 1;
+      state.streak = 0;
+      removeTailSegments(CONFIG.shrinkWrong);
+      state.flash = { color: "255, 101, 101", alpha: 0.38 };
+      playTone("bad");
+      setMessage("", "");
+    }
+
+    // ============================================
+    // 8. GAME FLOW SYSTEM
+    // ============================================
+    function ensureAudio() {
+      if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioContext.state === "suspended") audioContext.resume();
+      return audioContext;
+    }
+    function playTone(type) {
+      const ac = ensureAudio(); if (!ac) return;
+      const now = ac.currentTime;
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.connect(gain); gain.connect(ac.destination);
+      if (type === "good") {
+        osc.type = "triangle"; osc.frequency.setValueAtTime(520, now);
+        osc.frequency.linearRampToValueAtTime(760, now + 0.1);
+        gain.gain.setValueAtTime(0.0001, now); gain.gain.exponentialRampToValueAtTime(0.12, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+        osc.start(now); osc.stop(now + 0.2);
+      } else {
+        osc.type = "sawtooth"; osc.frequency.setValueAtTime(250, now);
+        osc.frequency.linearRampToValueAtTime(150, now + 0.16);
+        gain.gain.setValueAtTime(0.0001, now); gain.gain.exponentialRampToValueAtTime(0.11, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+        osc.start(now); osc.stop(now + 0.23);
+      }
+    }
+
+    function resetGame() {
+      state.snake = buildStartingSnake();
+      state.previousSnake = cloneSnake(state.snake);
+      state.score = 0;
+      state.streak = 0;
+      state.currentRoundIndex = 0;
+      state.rounds = generateRounds();
+      state.answerHistory = buildAnswerHistory();
+      state.expandedAnswerIndex = -1;
+      state.activeRound = positionRoundFromHead(state.rounds[0], state.snake[0]);
+      state.gameMode = "ready";
+      state.accumulator = 0;
+      state.lastTimestamp = 0;
+      state.currentDirection = { ...DIRECTIONS.up };
+      state.nextDirection = { ...DIRECTIONS.up };
+      state.growthQueue = 0;
+      state.flash = null;
+      state.rowResolved = false;
+      state.roundAdvanceAt = 0;
+      state.activeRoundSpawnAt = performance.now();
+      state.startAt = 0;
+      state.pulse = 0;
+      state.facingDirection = { ...DIRECTIONS.up };
+      updateHud();
+      renderAnswerHistory();
+      setPromptText(state.activeRound ? state.activeRound.questionText : "Mission Ready", state.activeRound ? state.activeRound.targetSentiment : null);
+    }
+
+    function startGame() {
+      state.gameMode = "running";
+      state.startAt = performance.now() + CONFIG.startDelayMs;
+      setPromptText(state.activeRound ? state.activeRound.questionText : "Alpha Snake", state.activeRound ? state.activeRound.targetSentiment : null);
+      updateHud();
+    }
+
+    function spawnNextRound() {
+      state.currentRoundIndex += 1;
+      state.rowResolved = false;
+      state.roundAdvanceAt = 0;
+      if (state.currentRoundIndex >= state.rounds.length) {
+        state.activeRound = null;
+        state.gameMode = "won";
+        playTone("good");
+        setPromptText("Round Complete", null, `Final score ${state.score}. Press any arrow key to play again.`);
+      } else {
+        state.activeRound = positionRoundFromHead(state.rounds[state.currentRoundIndex], state.snake[0]);
+        state.activeRoundSpawnAt = performance.now();
+        setPromptText(state.activeRound.questionText, state.activeRound.targetSentiment);
+      }
+      updateHud();
+    }
+
+    function resolveRound(choiceSide, missed = false) {
+      if (!state.activeRound || state.rowResolved) return;
+      const resolvedRound = state.activeRound;
+      state.rowResolved = true;
+      
+      if (missed) {
+        applyWrongPenalty("", true);
+      } else {
+        const choice = state.activeRound[choiceSide];
+        if (choiceSide === state.activeRound.correctSide) applyCorrectReward(choice.name);
+        else applyWrongPenalty(choice.name, false);
+      }
+      
+      revealRoundAnswer(resolvedRound);
+      if (state.gameMode === "gameover") return;
+      state.activeRound = null;
+      state.roundAdvanceAt = performance.now() + CONFIG.rowAdvanceDelay;
+      updateHud();
+    }
+
+    function tickGame() {
+      if (state.gameMode !== "running") return;
+      const newHead = moveSnake();
+      
+      const choiceSide = checkChoiceCollision(newHead);
+      if (choiceSide) {
+          resolveRound(choiceSide, false);
+      }
+      
+      updateHud();
+    }
+
+    function updateGameFlow(now) {
+      if (state.roundAdvanceAt && now >= state.roundAdvanceAt && state.gameMode === "running") {
+        spawnNextRound();
+      }
+    }
+
+    function updateHud() {
+      updateHudValue(scoreValue, state.score);
+      updateHudValue(lengthValue, state.snake.length);
+      updateHudValue(streakValue, state.streak);
+      updateHudValue(rowValue, `${Math.min(state.currentRoundIndex + 1, CONFIG.totalRounds)} / ${CONFIG.totalRounds}`);
+    }
+
+    // ============================================
+    // 10. RENDER SYSTEM (NO VISUAL CHANGES)
+    // ============================================
+    function drawCandlestick(context, cx, wickTop, wickBottom, bodyTop, bodyBottom, color, width) {
+      context.strokeStyle = color;
+      context.lineWidth = Math.max(1.5, width * 0.16);
+      context.beginPath(); context.moveTo(cx, wickTop); context.lineTo(cx, wickBottom); context.stroke();
+      context.fillStyle = color;
+      context.beginPath(); context.roundRect(cx - width * 0.5, bodyTop, width, Math.max(3, bodyBottom - bodyTop), width * 0.18);
+      context.fill();
+    }
+    function drawCandles(context, patternName, x, y, w, h) {
+      const left = x + w * 0.16; const top = y + h * 0.12; const bottom = y + h * 0.84;
+      const slot = w * 0.22; const bodyW = w * 0.12;
+      const green = "#67d879"; const red = "#ff6a6a"; const gray = "#d7e3ec";
+      const map = {
+        "Hammer": [{ c: green, x: 1.5, wt: 0.28, wb: 0.88, bt: 0.34, bb: 0.5 }],
+        "Shooting Star": [{ c: red, x: 1.5, wt: 0.06, wb: 0.68, bt: 0.48, bb: 0.62 }],
+        "Bullish Engulfing": [{ c: red, x: 1, wt: 0.2, wb: 0.72, bt: 0.36, bb: 0.58 }, { c: green, x: 2, wt: 0.14, wb: 0.8, bt: 0.24, bb: 0.7 }],
+        "Bearish Engulfing": [{ c: green, x: 1, wt: 0.16, wb: 0.68, bt: 0.28, bb: 0.52 }, { c: red, x: 2, wt: 0.12, wb: 0.82, bt: 0.26, bb: 0.74 }],
+        "Morning Star": [{ c: red, x: 0.8, wt: 0.16, wb: 0.8, bt: 0.28, bb: 0.7 }, { c: gray, x: 1.7, wt: 0.34, wb: 0.66, bt: 0.42, bb: 0.52 }, { c: green, x: 2.6, wt: 0.18, wb: 0.74, bt: 0.3, bb: 0.58 }],
+        "Evening Star": [{ c: green, x: 0.8, wt: 0.16, wb: 0.74, bt: 0.24, bb: 0.54 }, { c: gray, x: 1.7, wt: 0.3, wb: 0.6, bt: 0.38, bb: 0.48 }, { c: red, x: 2.6, wt: 0.24, wb: 0.8, bt: 0.36, bb: 0.7 }],
+        "Piercing Pattern": [{ c: red, x: 1, wt: 0.16, wb: 0.82, bt: 0.28, bb: 0.72 }, { c: green, x: 2, wt: 0.18, wb: 0.76, bt: 0.38, bb: 0.58 }],
+        "Piercing Line": [{ c: red, x: 1, wt: 0.16, wb: 0.82, bt: 0.28, bb: 0.72 }, { c: green, x: 2, wt: 0.18, wb: 0.76, bt: 0.38, bb: 0.58 }],
+        "Dark Cloud Cover": [{ c: green, x: 1, wt: 0.16, wb: 0.72, bt: 0.22, bb: 0.58 }, { c: red, x: 2, wt: 0.14, wb: 0.78, bt: 0.34, bb: 0.64 }],
+        "Bullish Harami": [{ c: red, x: 1, wt: 0.18, wb: 0.82, bt: 0.24, bb: 0.72 }, { c: green, x: 2, wt: 0.3, wb: 0.62, bt: 0.38, bb: 0.5 }],
+        "Bearish Harami": [{ c: green, x: 1, wt: 0.16, wb: 0.74, bt: 0.22, bb: 0.62 }, { c: red, x: 2, wt: 0.28, wb: 0.58, bt: 0.36, bb: 0.48 }],
+        "Tweezer Bottom": [{ c: red, x: 1, wt: 0.18, wb: 0.82, bt: 0.28, bb: 0.66 }, { c: green, x: 2, wt: 0.18, wb: 0.82, bt: 0.34, bb: 0.54 }],
+        "Tweezer Top": [{ c: green, x: 1, wt: 0.16, wb: 0.72, bt: 0.22, bb: 0.46 }, { c: red, x: 2, wt: 0.16, wb: 0.72, bt: 0.3, bb: 0.58 }],
+        "Bullish Counterattack": [{ c: red, x: 1, wt: 0.16, wb: 0.82, bt: 0.26, bb: 0.72 }, { c: green, x: 2, wt: 0.16, wb: 0.82, bt: 0.34, bb: 0.62 }],
+        "Bearish Counterattack": [{ c: green, x: 1, wt: 0.14, wb: 0.76, bt: 0.2, bb: 0.52 }, { c: red, x: 2, wt: 0.16, wb: 0.82, bt: 0.32, bb: 0.6 }],
+        "Morning Star Doji": [{ c: red, x: 0.8, wt: 0.16, wb: 0.8, bt: 0.28, bb: 0.7 }, { c: gray, x: 1.7, wt: 0.32, wb: 0.66, bt: 0.46, bb: 0.5 }, { c: green, x: 2.6, wt: 0.18, wb: 0.74, bt: 0.28, bb: 0.56 }],
+        "Evening Star Doji": [{ c: green, x: 0.8, wt: 0.16, wb: 0.74, bt: 0.22, bb: 0.52 }, { c: gray, x: 1.7, wt: 0.3, wb: 0.62, bt: 0.44, bb: 0.48 }, { c: red, x: 2.6, wt: 0.22, wb: 0.8, bt: 0.38, bb: 0.68 }],
+        "Three White Soldiers": [{ c: green, x: 0.8, wt: 0.22, wb: 0.8, bt: 0.38, bb: 0.7 }, { c: green, x: 1.7, wt: 0.16, wb: 0.72, bt: 0.28, bb: 0.6 }, { c: green, x: 2.6, wt: 0.1, wb: 0.64, bt: 0.18, bb: 0.5 }],
+        "Three Black Crows": [{ c: red, x: 0.8, wt: 0.12, wb: 0.72, bt: 0.24, bb: 0.56 }, { c: red, x: 1.7, wt: 0.18, wb: 0.8, bt: 0.34, bb: 0.66 }, { c: red, x: 2.6, wt: 0.24, wb: 0.86, bt: 0.44, bb: 0.76 }],
+        "Rising Three": [{ c: green, x: 0.55, wt: 0.12, wb: 0.8, bt: 0.22, bb: 0.68 }, { c: red, x: 1.15, wt: 0.28, wb: 0.66, bt: 0.36, bb: 0.5 }, { c: red, x: 1.75, wt: 0.26, wb: 0.64, bt: 0.34, bb: 0.48 }, { c: red, x: 2.35, wt: 0.24, wb: 0.62, bt: 0.32, bb: 0.46 }, { c: green, x: 2.95, wt: 0.08, wb: 0.86, bt: 0.14, bb: 0.72 }],
+        "Falling Three": [{ c: red, x: 0.55, wt: 0.12, wb: 0.84, bt: 0.2, bb: 0.72 }, { c: green, x: 1.15, wt: 0.28, wb: 0.62, bt: 0.34, bb: 0.46 }, { c: green, x: 1.75, wt: 0.3, wb: 0.64, bt: 0.36, bb: 0.48 }, { c: green, x: 2.35, wt: 0.32, wb: 0.66, bt: 0.38, bb: 0.5 }, { c: red, x: 2.95, wt: 0.1, wb: 0.88, bt: 0.24, bb: 0.8 }],
+        "Inverted Hammer": [{ c: green, x: 1.5, wt: 0.06, wb: 0.72, bt: 0.48, bb: 0.62 }],
+        "Hanging Man": [{ c: red, x: 1.5, wt: 0.26, wb: 0.88, bt: 0.34, bb: 0.48 }],
+        "Dragonfly Doji": [{ c: gray, x: 1.5, wt: 0.34, wb: 0.92, bt: 0.36, bb: 0.4 }],
+        "Gravestone Doji": [{ c: gray, x: 1.5, wt: 0.06, wb: 0.64, bt: 0.5, bb: 0.54 }],
+        "Three Inside Up": [{ c: red, x: 0.8, wt: 0.18, wb: 0.82, bt: 0.28, bb: 0.72 }, { c: green, x: 1.7, wt: 0.28, wb: 0.68, bt: 0.38, bb: 0.56 }, { c: green, x: 2.6, wt: 0.16, wb: 0.64, bt: 0.22, bb: 0.46 }],
+        "Three Inside Down": [{ c: green, x: 0.8, wt: 0.14, wb: 0.72, bt: 0.22, bb: 0.6 }, { c: red, x: 1.7, wt: 0.28, wb: 0.62, bt: 0.34, bb: 0.46 }, { c: red, x: 2.6, wt: 0.2, wb: 0.8, bt: 0.34, bb: 0.66 }],
+        "Two Crows": [{ c: green, x: 0.8, wt: 0.16, wb: 0.72, bt: 0.2, bb: 0.5 }, { c: red, x: 1.7, wt: 0.18, wb: 0.62, bt: 0.28, bb: 0.46 }, { c: red, x: 2.6, wt: 0.22, wb: 0.74, bt: 0.34, bb: 0.6 }],
+        "Abandoned Baby Bullish": [{ c: red, x: 0.8, wt: 0.16, wb: 0.82, bt: 0.26, bb: 0.72 }, { c: gray, x: 1.7, wt: 0.2, wb: 0.46, bt: 0.32, bb: 0.36 }, { c: green, x: 2.6, wt: 0.18, wb: 0.72, bt: 0.32, bb: 0.54 }],
+        "Bullish Abandoned Baby": [{ c: red, x: 0.8, wt: 0.16, wb: 0.82, bt: 0.26, bb: 0.72 }, { c: gray, x: 1.7, wt: 0.2, wb: 0.46, bt: 0.32, bb: 0.36 }, { c: green, x: 2.6, wt: 0.18, wb: 0.72, bt: 0.32, bb: 0.54 }],
+        "Bearish Abandoned Baby": [{ c: green, x: 0.8, wt: 0.16, wb: 0.72, bt: 0.22, bb: 0.5 }, { c: gray, x: 1.7, wt: 0.18, wb: 0.46, bt: 0.3, bb: 0.34 }, { c: red, x: 2.6, wt: 0.28, wb: 0.82, bt: 0.36, bb: 0.7 }],
+        "Three Outside Up": [{ c: red, x: 0.8, wt: 0.22, wb: 0.78, bt: 0.34, bb: 0.6 }, { c: green, x: 1.7, wt: 0.16, wb: 0.82, bt: 0.24, bb: 0.72 }, { c: green, x: 2.6, wt: 0.12, wb: 0.7, bt: 0.2, bb: 0.54 }],
+        "Three Outside Down": [{ c: green, x: 0.8, wt: 0.16, wb: 0.66, bt: 0.24, bb: 0.46 }, { c: red, x: 1.7, wt: 0.12, wb: 0.84, bt: 0.22, bb: 0.74 }, { c: red, x: 2.6, wt: 0.22, wb: 0.84, bt: 0.38, bb: 0.72 }],
+        "Bullish Kicker": [{ c: red, x: 1, wt: 0.18, wb: 0.72, bt: 0.26, bb: 0.62 }, { c: green, x: 2, wt: 0.04, wb: 0.84, bt: 0.08, bb: 0.76 }],
+        "Bearish Kicker": [{ c: green, x: 1, wt: 0.16, wb: 0.68, bt: 0.22, bb: 0.58 }, { c: red, x: 2, wt: 0.18, wb: 0.94, bt: 0.26, bb: 0.88 }],
+        "Bullish Belt Hold Pattern": [{ c: green, x: 1.5, wt: 0.18, wb: 0.88, bt: 0.22, bb: 0.8 }],
+        "Bearish Belt Hold Pattern": [{ c: red, x: 1.5, wt: 0.08, wb: 0.82, bt: 0.12, bb: 0.72 }],
+        "Bullish Separating Lines Pattern": [{ c: red, x: 1, wt: 0.16, wb: 0.78, bt: 0.24, bb: 0.62 }, { c: green, x: 2, wt: 0.16, wb: 0.84, bt: 0.24, bb: 0.72 }],
+        "Bearish Separating Lines": [{ c: green, x: 1, wt: 0.14, wb: 0.7, bt: 0.18, bb: 0.52 }, { c: red, x: 2, wt: 0.14, wb: 0.86, bt: 0.18, bb: 0.72 }],
+        "Ladder Bottom Pattern": [{ c: red, x: 0.65, wt: 0.12, wb: 0.72, bt: 0.22, bb: 0.5 }, { c: red, x: 1.2, wt: 0.2, wb: 0.78, bt: 0.3, bb: 0.58 }, { c: red, x: 1.75, wt: 0.28, wb: 0.84, bt: 0.38, bb: 0.66 }, { c: gray, x: 2.3, wt: 0.34, wb: 0.72, bt: 0.46, bb: 0.52 }, { c: green, x: 2.85, wt: 0.1, wb: 0.9, bt: 0.2, bb: 0.78 }],
+        "Advance Block": [{ c: green, x: 0.8, wt: 0.18, wb: 0.72, bt: 0.24, bb: 0.56 }, { c: green, x: 1.7, wt: 0.14, wb: 0.66, bt: 0.24, bb: 0.5 }, { c: red, x: 2.6, wt: 0.12, wb: 0.72, bt: 0.28, bb: 0.54 }],
+        "Takuri": [{ c: green, x: 1.5, wt: 0.34, wb: 0.94, bt: 0.36, bb: 0.48 }],
+        "Upside Gap Two Crows": [{ c: green, x: 0.8, wt: 0.18, wb: 0.72, bt: 0.18, bb: 0.48 }, { c: red, x: 1.7, wt: 0.1, wb: 0.56, bt: 0.18, bb: 0.34 }, { c: red, x: 2.6, wt: 0.14, wb: 0.72, bt: 0.26, bb: 0.48 }],
+        "Upside Gap Two Crows Pattern": [{ c: green, x: 0.8, wt: 0.18, wb: 0.72, bt: 0.18, bb: 0.48 }, { c: red, x: 1.7, wt: 0.1, wb: 0.56, bt: 0.18, bb: 0.34 }, { c: red, x: 2.6, wt: 0.14, wb: 0.72, bt: 0.26, bb: 0.48 }],
+        "Bearish Doji Star Pattern": [{ c: green, x: 0.8, wt: 0.16, wb: 0.72, bt: 0.22, bb: 0.5 }, { c: gray, x: 1.7, wt: 0.28, wb: 0.58, bt: 0.42, bb: 0.46 }, { c: red, x: 2.6, wt: 0.24, wb: 0.82, bt: 0.38, bb: 0.7 }]
+      };
+      const candles = map[patternName] || [{ c: green, x: 1.5, wt: 0.2, wb: 0.76, bt: 0.28, bb: 0.56 }];
+      candles.forEach((candle) => {
+        const cx = left + slot * candle.x;
+        drawCandlestick(context, cx, top + (bottom - top) * candle.wt, top + (bottom - top) * candle.wb, top + (bottom - top) * candle.bt, top + (bottom - top) * candle.bb, candle.c, bodyW);
+      });
+    }
+    function drawPatternTile(context, option, size, metrics, pulse) {
+      const panelW = option.w * size;
+      const panelH = option.h * size;
+      const x = metrics.boardX + option.x * size;
+      const y = metrics.boardY + option.y * size;
+      const isBullish = false;
+      const glow = "rgba(255, 255, 255, 0.2)";
+      const border = "rgba(255, 255, 255, 0.18)";
+      const contentPad = size * 0.16;
+      const labelBand = size * 0.5;
+      const spawnAlpha = state.activeRoundSpawnAt ? Math.min(1, (performance.now() - state.activeRoundSpawnAt) / 320) : 1;
+      const spawnEase = 1 - Math.pow(1 - spawnAlpha, 3);
+      const cardScale = 0.88 + spawnEase * 0.12 + Math.sin(pulse * 2.8 + option.x) * 0.01;
+      const arrow = isBullish ? "▲" : "▼";
+      context.save();
+      context.translate(x + panelW * 0.5, y + panelH * 0.5);
+      context.scale(cardScale, cardScale);
+      context.translate(-(x + panelW * 0.5), -(y + panelH * 0.5));
+      context.save();
+      context.shadowColor = glow;
+      context.shadowBlur = 24 + Math.sin(pulse * 5 + option.y) * 4;
+      context.shadowOffsetY = 8;
+      const glass = context.createLinearGradient(x, y, x + panelW, y + panelH);
+      glass.addColorStop(0, "rgba(18, 29, 36, 0.96)");
+      glass.addColorStop(0.58, "rgba(24, 38, 46, 0.88)");
+      glass.addColorStop(1, "rgba(14, 22, 30, 0.98)");
+      context.fillStyle = glass;
+      context.beginPath();
+      context.roundRect(x, y, panelW, panelH, size * 0.18);
+      context.fill();
+      context.strokeStyle = border;
+      context.lineWidth = Math.max(1.5, size * 0.06);
+      context.stroke();
+      context.restore();
+      context.save();
+      const topSheen = context.createLinearGradient(x, y, x, y + panelH);
+      topSheen.addColorStop(0, "rgba(255,255,255,0.18)");
+      topSheen.addColorStop(0.4, "rgba(255,255,255,0.02)");
+      topSheen.addColorStop(1, "rgba(255,255,255,0)");
+      context.fillStyle = topSheen;
+      context.beginPath();
+      context.roundRect(x + 1, y + 1, panelW - 2, panelH * 0.56, size * 0.16);
+      context.fill();
+      context.restore();
+      drawCandles(context, option.name, x + contentPad, y + contentPad, panelW - contentPad * 2, panelH - labelBand - contentPad);
+      context.save();
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillStyle = "#f6ffe7";
+      context.font = `700 ${Math.max(7, size * 0.21)}px ${getComputedStyle(document.documentElement).getPropertyValue("--font")}`;
+      context.fillText(option.name, x + panelW * 0.5, y + panelH - labelBand * 0.45);
+      context.restore();
+      if (CONFIG.debugHitbox) {
+        context.save();
+        context.fillStyle = "rgba(255, 0, 0, 0.18)";
+        context.strokeStyle = "rgba(255, 0, 0, 0.55)";
+        context.lineWidth = 1;
+        context.fillRect(x, y, panelW, panelH);
+        context.strokeRect(x, y, panelW, panelH);
+        context.restore();
+      }
+      context.restore();
+    }
+    function drawBoard(metrics) {
+      const { boardX, boardY, boardSize, cellSize } = metrics;
+      const baseGradient = ctx.createLinearGradient(boardX, boardY, boardX, boardY + boardSize);
+      baseGradient.addColorStop(0, "#8DE84A");
+      baseGradient.addColorStop(0.45, "#6CCB3C");
+      baseGradient.addColorStop(1, "#4E962C");
+      ctx.fillStyle = baseGradient;
+      ctx.fillRect(boardX, boardY, boardSize, boardSize);
+      for (let y = 0; y < CONFIG.rows; y++) {
+        for (let x = 0; x < CONFIG.cols; x++) {
+          const px = boardX + x * cellSize;
+          const py = boardY + y * cellSize;
+          const tone = (x + y) % 2 === 0;
+          const cellGradient = ctx.createLinearGradient(px, py, px + cellSize, py + cellSize);
+          cellGradient.addColorStop(0, tone ? "#AEEA5D" : "#99D546");
+          cellGradient.addColorStop(1, tone ? "#87D541" : "#79C639");
+          ctx.fillStyle = cellGradient;
+          ctx.fillRect(px, py, cellSize + 1, cellSize + 1);
+        }
+      }
+      const glow = ctx.createRadialGradient(boardX + boardSize * 0.5, boardY + boardSize * 0.12, boardSize * 0.04, boardX + boardSize * 0.5, boardY + boardSize * 0.12, boardSize * 0.7);
+      glow.addColorStop(0, "rgba(255,255,255,0.18)");
+      glow.addColorStop(0.35, "rgba(255,255,255,0.06)");
+      glow.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(boardX, boardY, boardSize, boardSize);
+      if (state.streak > 1) {
+        const streakGlow = Math.min(0.18, state.streak * 0.03) * (0.65 + Math.sin(state.pulse * 5) * 0.35);
+        ctx.fillStyle = `rgba(255, 217, 90, ${streakGlow})`;
+        ctx.fillRect(boardX, boardY, boardSize, boardSize);
+      }
+    }
+    function drawActiveRound(metrics) {
+      if (!state.activeRound) return;
+      const pulse = 1 + Math.sin(state.pulse * 6) * 0.08;
+      drawPatternTile(ctx, state.activeRound.left, metrics.cellSize, metrics, pulse);
+      drawPatternTile(ctx, state.activeRound.right, metrics.cellSize, metrics, pulse);
+    }
+    function wrapInterpolatedValue(value, size) {
+      let result = value;
+      while (result < 0) result += size;
+      while (result >= size) result -= size;
+      return result;
+    }
+    function interpolateWrapped(from, to, size, alpha) {
+      let delta = to - from;
+      if (Math.abs(delta) > size * 0.5) delta += delta > 0 ? -size : size;
+      return wrapInterpolatedValue(from + delta * alpha, size);
+    }
+    function getRenderDirection() {
+      return isReverseDirection(state.nextDirection, state.currentDirection) ? state.currentDirection : state.nextDirection;
+    }
+    function getRenderedSegment(index, alpha) {
+      const segment = state.snake[index];
+      if (!segment) return state.snake[state.snake.length - 1];
+      if (index === 0) {
+        const renderDirection = getRenderDirection();
+        const target = {
+          x: segment.x + renderDirection.x,
+          y: segment.y + renderDirection.y
+        };
+        return {
+          x: interpolateWrapped(segment.x, target.x, CONFIG.cols, alpha),
+          y: interpolateWrapped(segment.y, target.y, CONFIG.rows, alpha)
+        };
+      }
+      const target = state.snake[index - 1] || segment;
+      return {
+        x: interpolateWrapped(segment.x, target.x, CONFIG.cols, alpha),
+        y: interpolateWrapped(segment.y, target.y, CONFIG.rows, alpha)
+      };
+    }
+    function getInterpolatedSegment(index, alpha) {
+      const current = state.snake[index] || state.snake[state.snake.length - 1];
+      const previous = state.previousSnake[index] || current;
+      // Handle wrapping interpolation
+      let dx = current.x - previous.x;
+      let dy = current.y - previous.y;
+      if (Math.abs(dx) > 1) dx = dx > 0 ? -1 : 1;
+      if (Math.abs(dy) > 1) dy = dy > 0 ? -1 : 1;
+      return { x: previous.x + dx * alpha, y: previous.y + dy * alpha };
+    }
+    function renderSnake(metrics) {
+      const alpha = state.gameMode === "running" ? Math.min(1, state.accumulator / CONFIG.tickMs) : 0;
+      const size = metrics.cellSize;
+      const blinkPhase = state.pulse % 4.2;
+      const blinkScale = blinkPhase > 3.75 && blinkPhase < 3.95 ? 0.22 : 1;
+      const tongueOut = state.pulse % 5.4 < 0.18;
+      for (let i = state.snake.length - 1; i >= 0; i--) {
+        const s = getRenderedSegment(i, alpha);
+        const bounce = Math.sin(state.pulse * 8 + i * 0.45) * size * 0.028;
+        const segmentSize = size * (i === 0 ? 0.9 : 0.76);
+        const px = metrics.boardX + s.x * size + (size - segmentSize) * 0.5;
+        const py = metrics.boardY + s.y * size + (size - segmentSize) * 0.5 + bounce;
+        const radius = segmentSize * 0.46;
+        ctx.save();
+        ctx.fillStyle = "rgba(14, 28, 84, 0.18)";
+        ctx.beginPath();
+        ctx.ellipse(px + segmentSize * 0.5, py + segmentSize * 0.92, segmentSize * 0.42, segmentSize * 0.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        ctx.save();
+        ctx.shadowColor = "rgba(43, 78, 196, 0.34)";
+        ctx.shadowBlur = i === 0 ? 16 : 12;
+        ctx.shadowOffsetY = 6;
+        const bodyGradient = ctx.createLinearGradient(px, py, px, py + segmentSize);
+        bodyGradient.addColorStop(0, i === 0 ? "#88ABFF" : "#6D95FF");
+        bodyGradient.addColorStop(0.55, i === 0 ? "#4B7BFF" : "#4F7CFA");
+        bodyGradient.addColorStop(1, i === 0 ? "#2E5EFF" : "#365FE1");
+        ctx.fillStyle = bodyGradient;
+        ctx.beginPath();
+        ctx.roundRect(px, py, segmentSize, segmentSize, radius);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.08)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+        ctx.save();
+        const sheen = ctx.createLinearGradient(px, py, px, py + segmentSize * 0.7);
+        sheen.addColorStop(0, "rgba(255,255,255,0.28)");
+        sheen.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = sheen;
+        ctx.beginPath();
+        ctx.roundRect(px + segmentSize * 0.08, py + segmentSize * 0.08, segmentSize * 0.84, segmentSize * 0.36, radius * 0.7);
+        ctx.fill();
+        ctx.restore();
+      }
+      const head = getRenderedSegment(0, alpha);
+      const cx = metrics.boardX + (head.x + 0.5) * size; const cy = metrics.boardY + (head.y + 0.5) * size;
+      let angle = -Math.PI * 0.5;
+      if (state.facingDirection.x === -1) angle = Math.PI;
+      if (state.facingDirection.x === 1) angle = 0;
+      if (state.facingDirection.y === 1) angle = Math.PI * 0.5;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      if (tongueOut) {
+        ctx.strokeStyle = "#FF7D8B";
+        ctx.lineWidth = Math.max(1.2, size * 0.05);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(size * 0.43, 0);
+        ctx.lineTo(size * 0.58, -size * 0.05);
+        ctx.moveTo(size * 0.43, 0);
+        ctx.lineTo(size * 0.58, size * 0.05);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(size * 0.13, -size * 0.14, size * 0.11, size * 0.12 * blinkScale, 0, 0, Math.PI * 2);
+      ctx.ellipse(size * 0.13, size * 0.14, size * 0.11, size * 0.12 * blinkScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1F2F59";
+      ctx.beginPath();
+      ctx.arc(size * 0.16, -size * 0.14, size * 0.045, 0, Math.PI * 2);
+      ctx.arc(size * 0.16, size * 0.14, size * 0.045, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    function renderFlash(metrics) {
+      if (!state.flash) return;
+      ctx.fillStyle = `rgba(${state.flash.color}, ${state.flash.alpha})`;
+      ctx.fillRect(metrics.boardX, metrics.boardY, metrics.boardSize, metrics.boardSize);
+    }
+    function render() {
+      const metrics = getBoardMetrics();
+      ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+      drawBoard(metrics);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(metrics.boardX, metrics.boardY, metrics.boardSize, metrics.boardSize);
+      ctx.clip();
+      drawActiveRound(metrics);
+      renderSnake(metrics);
+      renderFlash(metrics);
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.08)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(metrics.boardX, metrics.boardY, metrics.boardSize, metrics.boardSize);
+      ctx.restore();
+    }
+
+    // ============================================
+    // 11. MAIN LOOP
+    // ============================================
+    function initGame() { syncDeviceMode(); hideNonBoardUi(); createAmbientParticles(); setupCanvas(); resetGame(); updateHud(); render(); }
+    function step(timestamp) {
+      if (!state.lastTimestamp) state.lastTimestamp = timestamp;
+      const deltaMs = Math.min(32, timestamp - state.lastTimestamp);
+      state.lastTimestamp = timestamp; state.pulse += deltaMs / 1000;
+      if (state.flash) { state.flash.alpha *= Math.pow(0.12, deltaMs / 1000); if (state.flash.alpha < 0.01) state.flash = null; }
+      updateGameFlow(performance.now());
+      if (state.gameMode === "running") {
+        if (state.startAt && performance.now() < state.startAt) { render(); requestAnimationFrame(step); return; }
+        if (state.startAt && performance.now() >= state.startAt) state.startAt = 0;
+        state.accumulator += deltaMs;
+        while (state.accumulator >= CONFIG.tickMs) {
+          tickGame();
+          state.accumulator -= CONFIG.tickMs;
+          if (state.gameMode !== "running") { state.accumulator = 0; break; }
+        }
+      }
+      render(); requestAnimationFrame(step);
+    }
+
+    window.addEventListener("keydown", (event) => {
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault(); if (!event.repeat) handleArrowInput(event.key);
+      }
+      if (event.code === "Space") {
+        event.preventDefault();
+        if (state.gameMode === "running") { state.gameMode = "paused"; setMessage("Paused", "Press Space to resume."); }
+        else if (state.gameMode === "paused") { state.gameMode = "running"; setPromptText(state.activeRound ? state.activeRound.questionText : "Mission Active", state.activeRound ? state.activeRound.targetSentiment : null); }
+      }
+    });
+    restartButton.addEventListener("click", () => { ensureAudio(); resetGame(); });
+    soundButton.addEventListener("click", () => { ensureAudio(); });
+    window.addEventListener("resize", () => { syncDeviceMode(); setupCanvas(); render(); renderAnswerPatternPreviews(); });
+
+    initGame();
+    requestAnimationFrame(step);
+  </script>
+</body>
+</html>
