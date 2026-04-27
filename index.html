@@ -1173,7 +1173,7 @@
         max-width: 180px;
       }
       .mobile-controls {
-        display: grid;
+        display: none;
       }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -1217,12 +1217,6 @@
     </div>
     <div class="controls">
       <div>Arrow keys to steer. Space pauses.</div>
-      <div class="mobile-controls" aria-label="Touch arrow controls">
-        <button id="touchUp" class="mobile-control mobile-control-up" type="button" aria-label="Move up">↑</button>
-        <button id="touchLeft" class="mobile-control mobile-control-left" type="button" aria-label="Move left">←</button>
-        <button id="touchDown" class="mobile-control mobile-control-down" type="button" aria-label="Move down">↓</button>
-        <button id="touchRight" class="mobile-control mobile-control-right" type="button" aria-label="Move right">→</button>
-      </div>
       <div class="button-row">
         <button id="restartButton" type="button">Restart</button>
         <button id="soundButton" type="button" class="secondary">Sound: On</button>
@@ -1653,10 +1647,6 @@
     const messageSub = document.getElementById("messageSub");
     const restartButton = document.getElementById("restartButton");
     const soundButton = document.getElementById("soundButton");
-    const touchUp = document.getElementById("touchUp");
-    const touchLeft = document.getElementById("touchLeft");
-    const touchDown = document.getElementById("touchDown");
-    const touchRight = document.getElementById("touchRight");
     const answerList = document.getElementById("answerList");
     const gameShell = document.querySelector(".game-shell");
     const topBar = document.querySelector(".top-bar");
@@ -1969,6 +1959,29 @@
         previewCtx.stroke();
         drawCandles(previewCtx, patternName, 4, 4, width - 8, height - 8);
       });
+    }
+    function handleCanvasTap(clientX, clientY) {
+      if (document.documentElement.dataset.device !== "phone") return;
+      const head = state.snake[0];
+      if (!head) return;
+      const rect = canvas.getBoundingClientRect();
+      const metrics = getBoardMetrics();
+      const tapX = clientX - rect.left;
+      const tapY = clientY - rect.top;
+      const boardLeft = metrics.boardX;
+      const boardTop = metrics.boardY;
+      const boardRight = boardLeft + metrics.boardSize;
+      const boardBottom = boardTop + metrics.boardSize;
+      if (tapX < boardLeft || tapX > boardRight || tapY < boardTop || tapY > boardBottom) return;
+      const headCenterX = boardLeft + (head.x + 0.5) * metrics.cellSize;
+      const headCenterY = boardTop + (head.y + 0.5) * metrics.cellSize;
+      const deltaX = tapX - headCenterX;
+      const deltaY = tapY - headCenterY;
+      const nextKey = Math.abs(deltaX) >= Math.abs(deltaY)
+        ? (deltaX >= 0 ? "ArrowRight" : "ArrowLeft")
+        : (deltaY >= 0 ? "ArrowDown" : "ArrowUp");
+      ensureAudio();
+      handleArrowInput(nextKey);
     }
     function syncDeviceMode() {
       const width = window.innerWidth;
@@ -2726,18 +2739,8 @@
         else if (state.gameMode === "paused") { state.gameMode = "running"; setPromptText(state.activeRound ? state.activeRound.questionText : "Mission Active", state.activeRound ? state.activeRound.targetSentiment : null); }
       }
     });
-    [
-      [touchUp, "ArrowUp"],
-      [touchLeft, "ArrowLeft"],
-      [touchDown, "ArrowDown"],
-      [touchRight, "ArrowRight"]
-    ].forEach(([buttonEl, key]) => {
-      if (!buttonEl) return;
-      buttonEl.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        ensureAudio();
-        handleArrowInput(key);
-      });
+    canvas.addEventListener("click", (event) => {
+      handleCanvasTap(event.clientX, event.clientY);
     });
     restartButton.addEventListener("click", () => { ensureAudio(); resetGame(); });
     soundButton.addEventListener("click", () => { ensureAudio(); });
