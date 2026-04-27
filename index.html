@@ -46,7 +46,7 @@
       --viewport-pad: 8px;
       --shell-max: 100%;
       --rail-width: 100%;
-      --stage-max: min(92vw, 560px);
+      --stage-max: min(74vw, 430px);
       --stage-side-reserve: 36px;
     }
 
@@ -871,6 +871,54 @@
       gap: 12px;
       pointer-events: auto;
     }
+    .mobile-controls {
+      display: none;
+      grid-template-columns: repeat(3, 56px);
+      grid-template-rows: repeat(2, 52px);
+      justify-content: center;
+      gap: 8px;
+      pointer-events: auto;
+      align-self: center;
+    }
+    .mobile-control {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.1), rgba(255,255,255,0.04));
+      color: var(--text);
+      font: inherit;
+      font-size: 1.2rem;
+      font-weight: 800;
+      box-shadow: 0 12px 28px rgba(9, 24, 9, 0.2), inset 0 1px 0 rgba(255,255,255,0.16);
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+    }
+    .mobile-control:hover {
+      background: rgba(255,255,255,0.12);
+      border-color: rgba(255,255,255,0.18);
+    }
+    .mobile-control:active {
+      transform: scale(0.96);
+    }
+    .mobile-control-up {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .mobile-control-left {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    .mobile-control-down {
+      grid-column: 2;
+      grid-row: 2;
+    }
+    .mobile-control-right {
+      grid-column: 3;
+      grid-row: 2;
+    }
     button {
       appearance: none;
       border: 1px solid rgba(255,255,255,0.12);
@@ -999,8 +1047,13 @@
       }
     }
     @media (max-width: 720px) {
+      html, body {
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
       .game-shell {
-        height: min(calc(100dvh - (var(--viewport-pad) * 2)), 980px);
+        height: auto;
+        min-height: calc(100dvh - (var(--viewport-pad) * 2));
         gap: 14px;
       }
       .top-bar {
@@ -1020,11 +1073,23 @@
         gap: 14px;
       }
       .board-wrap {
+        grid-template-columns: 1fr;
         padding: 12px;
         gap: 12px;
+        justify-items: center;
+        align-content: start;
       }
       .board-stage {
         justify-content: center;
+        width: 100%;
+      }
+      canvas {
+        width: min(74vw, 430px);
+      }
+      .answer-rail {
+        width: min(100%, 74vw);
+        max-width: 430px;
+        min-height: 0;
       }
       .message-card {
         min-height: 102px;
@@ -1094,7 +1159,10 @@
           max-height: min(280px, 38vh);
         }
         .controls {
+          flex-direction: column;
+          align-items: stretch;
           justify-content: center;
+          gap: 10px;
         }
       .button-row {
         width: 100%;
@@ -1103,6 +1171,9 @@
       button {
         flex: 1 1 0;
         max-width: 180px;
+      }
+      .mobile-controls {
+        display: grid;
       }
     }
     @media (prefers-reduced-motion: reduce) {
@@ -1146,6 +1217,12 @@
     </div>
     <div class="controls">
       <div>Arrow keys to steer. Space pauses.</div>
+      <div class="mobile-controls" aria-label="Touch arrow controls">
+        <button id="touchUp" class="mobile-control mobile-control-up" type="button" aria-label="Move up">↑</button>
+        <button id="touchLeft" class="mobile-control mobile-control-left" type="button" aria-label="Move left">←</button>
+        <button id="touchDown" class="mobile-control mobile-control-down" type="button" aria-label="Move down">↓</button>
+        <button id="touchRight" class="mobile-control mobile-control-right" type="button" aria-label="Move right">→</button>
+      </div>
       <div class="button-row">
         <button id="restartButton" type="button">Restart</button>
         <button id="soundButton" type="button" class="secondary">Sound: On</button>
@@ -1576,6 +1653,10 @@
     const messageSub = document.getElementById("messageSub");
     const restartButton = document.getElementById("restartButton");
     const soundButton = document.getElementById("soundButton");
+    const touchUp = document.getElementById("touchUp");
+    const touchLeft = document.getElementById("touchLeft");
+    const touchDown = document.getElementById("touchDown");
+    const touchRight = document.getElementById("touchRight");
     const answerList = document.getElementById("answerList");
     const gameShell = document.querySelector(".game-shell");
     const topBar = document.querySelector(".top-bar");
@@ -2644,6 +2725,19 @@
         if (state.gameMode === "running") { state.gameMode = "paused"; setMessage("Paused", "Press Space to resume."); }
         else if (state.gameMode === "paused") { state.gameMode = "running"; setPromptText(state.activeRound ? state.activeRound.questionText : "Mission Active", state.activeRound ? state.activeRound.targetSentiment : null); }
       }
+    });
+    [
+      [touchUp, "ArrowUp"],
+      [touchLeft, "ArrowLeft"],
+      [touchDown, "ArrowDown"],
+      [touchRight, "ArrowRight"]
+    ].forEach(([buttonEl, key]) => {
+      if (!buttonEl) return;
+      buttonEl.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        ensureAudio();
+        handleArrowInput(key);
+      });
     });
     restartButton.addEventListener("click", () => { ensureAudio(); resetGame(); });
     soundButton.addEventListener("click", () => { ensureAudio(); });
