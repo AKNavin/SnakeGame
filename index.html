@@ -34,6 +34,7 @@
       --rail-width: 340px;
       --stage-max: 640px;
       --stage-side-reserve: 520px;
+      --answer-detail-max-h: min(300px, 40vh);
     }
     html[data-device="tablet"] {
       --viewport-pad: 10px;
@@ -41,6 +42,7 @@
       --rail-width: 320px;
       --stage-max: 580px;
       --stage-side-reserve: 220px;
+      --answer-detail-max-h: min(290px, 38vh);
     }
     html[data-device="phone"] {
       --viewport-pad: 8px;
@@ -48,6 +50,7 @@
       --rail-width: 100%;
       --stage-max: min(calc(100vw - 40px), 520px);
       --stage-side-reserve: 20px;
+      --answer-detail-max-h: min(280px, 38vh);
     }
 
     * { box-sizing: border-box; }
@@ -752,7 +755,8 @@
       display: grid;
       grid-template-rows: auto minmax(0, 1fr);
       gap: 8px;
-      max-height: min(300px, 40vh);
+      max-height: var(--answer-detail-max-h);
+      overflow: hidden;
       transform: translateY(-8px);
       transition: transform 0.24s ease;
     }
@@ -801,14 +805,18 @@
     }
     .answer-item-detail-body {
       min-height: 0;
+      max-height: calc(var(--answer-detail-max-h) - 52px);
       display: grid;
       gap: 8px;
       overflow-y: auto;
+      overflow-x: hidden;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
       scrollbar-width: none;
       -ms-overflow-style: none;
       padding-right: 2px;
+      padding-bottom: 2px;
     }
     .answer-item-detail-body::-webkit-scrollbar {
       width: 0;
@@ -1157,7 +1165,6 @@
         }
         .answer-item-detail-card {
           padding: 9px;
-          max-height: min(280px, 38vh);
         }
         .controls {
           flex-direction: column;
