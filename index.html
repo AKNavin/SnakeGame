@@ -46,8 +46,8 @@
       --viewport-pad: 8px;
       --shell-max: 100%;
       --rail-width: 100%;
-      --stage-max: min(74vw, 430px);
-      --stage-side-reserve: 36px;
+      --stage-max: min(calc(100vw - 40px), 520px);
+      --stage-side-reserve: 20px;
     }
 
     * { box-sizing: border-box; }
@@ -1074,8 +1074,8 @@
       }
       .board-wrap {
         grid-template-columns: 1fr;
-        padding: 12px;
-        gap: 12px;
+        padding: 10px;
+        gap: 10px;
         justify-items: center;
         align-content: start;
       }
@@ -1084,11 +1084,12 @@
         width: 100%;
       }
       canvas {
-        width: min(74vw, 430px);
+        width: min(100%, calc(100vw - 40px));
+        max-width: 520px;
       }
       .answer-rail {
-        width: min(100%, 74vw);
-        max-width: 430px;
+        width: min(100%, calc(100vw - 40px));
+        max-width: 520px;
         min-height: 0;
       }
       .message-card {
